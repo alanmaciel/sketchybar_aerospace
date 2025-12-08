@@ -1,0 +1,227 @@
+#!/usr/bin/env bash
+
+CONFIG_DIR="${CONFIG_DIR:-$HOME/.config/sketchybar}"
+PLUGIN_DIR="$CONFIG_DIR/plugins"
+
+source "$CONFIG_DIR/themes.sh"
+
+
+########################################
+# BAR
+########################################
+sketchybar --bar \
+  position=top \
+  height=32 \
+  blur_radius=30 \
+  color="$BAR_BG"
+  # border_color="$BAR_BORDER" \
+  # border_width=1
+
+########################################
+# DEFAULTS
+########################################
+default=(
+  icon.font="Hack Nerd Font:Bold:17.0"
+  label.font="Hack Nerd Font:Bold:14.0"
+  icon.color="$BAR_FG"
+  label.color="$BAR_FG"
+  padding_left=4
+  padding_right=4
+  label.padding_left=4
+  label.padding_right=4
+)
+sketchybar --default "${default[@]}"
+
+########################################
+# AEROSPACE EVENT
+########################################
+sketchybar --add event aerospace_workspace_change
+
+########################################
+# LAPTOP ROW (1–5) → display 1, monitor 2
+########################################
+SPACE_MON1=("1" "2" "3" "4" "5")
+
+for sid in "${SPACE_MON1[@]}"; do
+  sketchybar --add item "space1.$sid" left \
+    --subscribe "space1.$sid" aerospace_workspace_change \
+    --set "space1.$sid" \
+      associated_display=1 \
+      icon.drawing=off \
+      label="$sid" \
+      background.color="$SPACE_BG" \
+      background.corner_radius=5 \
+      background.height=22 \
+      background.drawing=on \
+      label.padding_left=10 \
+      label.padding_right=10 \
+      click_script="aerospace workspace $sid" \
+      script="$PLUGIN_DIR/aerospace_workspaces_per_monitor.sh $sid 2"
+done
+
+
+########################################
+# EXTERNAL ROW (6–0) → display 2, monitor 1
+########################################
+SPACE_MON2=("6" "7" "8" "9" "0")
+
+for sid in "${SPACE_MON2[@]}"; do
+  sketchybar --add item "space2.$sid" left \
+    --subscribe "space2.$sid" aerospace_workspace_change \
+    --set "space2.$sid" \
+      associated_display=2 \
+      icon.drawing=off \
+      label="$sid" \
+      background.color="$SPACE_BG" \
+      background.corner_radius=5 \
+      background.height=22 \
+      background.drawing=on \
+      label.padding_left=10 \
+      label.padding_right=10 \
+      click_script="aerospace workspace $sid" \
+      script="$PLUGIN_DIR/aerospace_workspaces_per_monitor.sh $sid 1"
+done
+
+
+########################################
+# LEFT SIDE – DISPLAY 1 (Laptop)
+########################################
+sketchybar --add item chevron left \
+           --set chevron icon=❯ label.drawing=off \
+           --add item front_app left \
+           --set front_app icon.drawing=off script="$PLUGIN_DIR/front_app.sh" \
+           --subscribe front_app front_app_switched aerospace_workspace_change
+
+
+########################################
+# RIGHT SIDE – DISPLAY 1 (Laptop)
+########################################
+
+sketchybar --add item clock right \
+  --set clock \
+      associated_display=1 \
+      icon= \
+      icon.color="$RIGHT_ICON" \
+      label.color="$RIGHT_LABEL" \
+      update_freq=15 \
+      background.color="$SPACE_BG" \
+      background.corner_radius=5 \
+      background.height=24 \
+      background.drawing=on \
+      icon.padding_left=10 \
+      icon.padding_right=4 \
+      label.padding_left=2 \
+      label.padding_right=10 \
+      script="$PLUGIN_DIR/clock.sh" \
+      click_script="$PLUGIN_DIR/clock.sh click"
+
+# sketchybar --add item wifi right \
+#   --set wifi \
+#       associated_display=1 \
+#       icon= \
+#       icon.color="$RIGHT_ICON" \
+#       label.color="$RIGHT_LABEL" \
+#       update_freq=10 \
+#       background.color="$SPACE_BG" \
+#       background.corner_radius=14 \
+#       background.height=24 \
+#       background.drawing=on \
+#       icon.padding_left=10 \
+#       icon.padding_right=4 \
+#       label.padding_left=2 \
+#       label.padding_right=10 \
+#       script="$PLUGIN_DIR/wifi.sh" \
+#       click_script="$PLUGIN_DIR/wifi.sh click"
+
+sketchybar --add item battery right \
+  --set battery \
+      associated_display=1 \
+      icon= \
+      icon.color="$RIGHT_ICON" \
+      label.color="$RIGHT_LABEL" \
+      update_freq=30 \
+      background.color="$SPACE_BG" \
+      background.corner_radius=5 \
+      background.height=24 \
+      background.drawing=on \
+      icon.padding_left=10 \
+      icon.padding_right=4 \
+      label.padding_left=2 \
+      label.padding_right=10 \
+      script="$PLUGIN_DIR/battery.sh" \
+      click_script="$PLUGIN_DIR/battery.sh click"
+
+
+########################################
+# RIGHT SIDE – DISPLAY 2 (External)
+########################################
+
+sketchybar --add item clock_ext right \
+  --set clock_ext \
+      associated_display=2 \
+      icon= \
+      icon.color="$RIGHT_ICON" \
+      label.color="$RIGHT_LABEL" \
+      update_freq=15 \
+      background.color="$SPACE_BG" \
+      background.corner_radius=14 \
+      background.height=24 \
+      background.drawing=on \
+      icon.padding_left=10 \
+      icon.padding_right=4 \
+      label.padding_left=2 \
+      label.padding_right=10 \
+      script="$PLUGIN_DIR/clock.sh" \
+      click_script="$PLUGIN_DIR/clock.sh click"
+
+# sketchybar --add item wifi_ext right \
+#   --set wifi_ext \
+#       associated_display=2 \
+#       icon= \
+#       icon.color="$RIGHT_ICON" \
+#       label.color="$RIGHT_LABEL" \
+#       update_freq=10 \
+#       background.color="$SPACE_BG" \
+#       background.corner_radius=14 \
+#       background.height=24 \
+#       background.drawing=on \
+#       icon.padding_left=10 \
+#       icon.padding_right=4 \
+#       label.padding_left=2 \
+#       label.padding_right=10 \
+#       script="$PLUGIN_DIR/wifi.sh" \
+#       click_script="$PLUGIN_DIR/wifi.sh click"
+
+sketchybar --add item battery_ext right \
+  --set battery_ext \
+      associated_display=2 \
+      icon= \
+      icon.color="$RIGHT_ICON" \
+      label.color="$RIGHT_LABEL" \
+      update_freq=30 \
+      background.color="$SPACE_BG" \
+      background.corner_radius=14 \
+      background.height=24 \
+      background.drawing=on \
+      icon.padding_left=10 \
+      icon.padding_right=4 \
+      label.padding_left=2 \
+      label.padding_right=10 \
+      script="$PLUGIN_DIR/battery.sh" \
+      click_script="$PLUGIN_DIR/battery.sh click"
+
+########################################
+# DISPLAY ADAPTATION (1 vs 2+ monitors)
+########################################
+
+sketchybar --add item display_adapter right \
+  --set display_adapter drawing=off script="$PLUGIN_DIR/display_adapt.sh" \
+  --subscribe display_adapter display_change
+
+# Run once at startup
+"$PLUGIN_DIR/display_adapt.sh" &
+
+########################################
+# INITIAL UPDATE
+########################################
+sketchybar --update

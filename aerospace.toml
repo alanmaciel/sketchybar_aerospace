@@ -1,0 +1,117 @@
+# AeroSpace + SketchyBar minimal config (2 monitors, per-monitor workspaces)
+
+start-at-login = true
+
+# Start SketchyBar when AeroSpace starts
+after-startup-command = [
+  "exec-and-forget sketchybar",
+  "exec-and-forget borders active_color=0xff00bcff inactive_color=0xff494d64 width=10.0"
+]
+
+# Notify SketchyBar when workspace changes
+exec-on-workspace-change = [
+  "/bin/bash", "-c",
+  "sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE"
+]
+
+# Per-monitor workspace assignment
+# 1 | C49RG9x          # external
+# 2 | Built-in Retina  # laptop
+
+[workspace-to-monitor-force-assignment]
+# Laptop (Built-in Retina, monitor 2) → 1–5
+"1" = 2
+"2" = 2
+"3" = 2
+"4" = 2
+"5" = 2
+
+# External (C49RG9x, monitor 1) → 6–0
+"6" = 1
+"7" = 1
+"8" = 1
+"9" = 1
+"0" = 1
+
+# Gaps (so windows don't cover SketchyBar)
+[gaps]
+inner.horizontal = 16
+inner.vertical   = 16
+outer.left       = 16
+outer.right      = 16
+outer.bottom     = 16
+# 32px gap only on external "C49RG9x", 0px on all others (laptop)
+outer.top        = [{ monitor."C49RG9x" = 40 }, 16]
+
+# MAIN MODE KEYBINDINGS
+[mode.main.binding]
+
+# Focus
+alt-h = "focus left"
+alt-j = "focus down"
+alt-k = "focus up"
+alt-l = "focus right"
+
+# Move window
+alt-shift-h = "move left"
+alt-shift-j = "move down"
+alt-shift-k = "move up"
+alt-shift-l = "move right"
+
+# Resize
+alt-shift-minus = "resize smart -50"
+alt-shift-equal = "resize smart +50"
+
+# Layout toggle
+alt-slash = "layout tiles horizontal vertical"
+alt-comma = "layout accordion horizontal vertical"
+
+# Workspaces – monitor 1
+alt-1 = "workspace 1"
+alt-2 = "workspace 2"
+alt-3 = "workspace 3"
+alt-4 = "workspace 4"
+alt-5 = "workspace 5"
+
+# Workspaces – monitor 2
+alt-6 = "workspace 6"
+alt-7 = "workspace 7"
+alt-8 = "workspace 8"
+alt-9 = "workspace 9"
+alt-0 = "workspace 0"
+
+# Move window to workspace
+alt-shift-1 = "move-node-to-workspace 1"
+alt-shift-2 = "move-node-to-workspace 2"
+alt-shift-3 = "move-node-to-workspace 3"
+alt-shift-4 = "move-node-to-workspace 4"
+alt-shift-5 = "move-node-to-workspace 5"
+
+alt-shift-6 = "move-node-to-workspace 6"
+alt-shift-7 = "move-node-to-workspace 7"
+alt-shift-8 = "move-node-to-workspace 8"
+alt-shift-9 = "move-node-to-workspace 9"
+alt-shift-0 = "move-node-to-workspace 0"
+
+# Workspace back/forward
+alt-tab       = "workspace-back-and-forth"
+alt-shift-tab = "move-workspace-to-monitor --wrap-around next"
+
+# Float/tile toggle
+alt-shift-f = "layout floating tiling"
+
+# Enter service mode
+alt-shift-semicolon = "mode service"
+
+# SERVICE MODE
+[mode.service.binding]
+esc       = ["reload-config", "mode main"]
+r         = ["flatten-workspace-tree", "mode main"]
+f         = ["layout floating tiling", "mode main"]
+backspace = ["close-all-windows-but-current", "mode main"]
+
+alt-shift-h = ["join-with left",  "mode main"]
+alt-shift-j = ["join-with down",  "mode main"]
+alt-shift-k = ["join-with up",    "mode main"]
+alt-shift-l = ["join-with right", "mode main"]
+
