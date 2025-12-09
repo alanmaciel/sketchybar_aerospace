@@ -164,7 +164,7 @@ sketchybar --add item clock_ext right \
       label.color="$RIGHT_LABEL" \
       update_freq=15 \
       background.color="$SPACE_BG" \
-      background.corner_radius=14 \
+      background.corner_radius=5 \
       background.height=24 \
       background.drawing=on \
       icon.padding_left=10 \
@@ -200,7 +200,7 @@ sketchybar --add item battery_ext right \
       label.color="$RIGHT_LABEL" \
       update_freq=30 \
       background.color="$SPACE_BG" \
-      background.corner_radius=14 \
+      background.corner_radius=5 \
       background.height=24 \
       background.drawing=on \
       icon.padding_left=10 \
