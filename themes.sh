@@ -16,6 +16,10 @@ case "$THEME" in
     SPACE_ACTIVE_FG=0xff1d2021
     SPACE_ACTIVE_BORDER=0xfffe8019
 
+    # Empty workspace colors
+    SPACE_EMPTY_BG=0xff282828
+    SPACE_EMPTY_FG=0xff928374
+
     RIGHT_ICON=0xffebdbb2
     RIGHT_LABEL=0xffebdbb2
     ;;
@@ -33,6 +37,10 @@ case "$THEME" in
     SPACE_ACTIVE_FG=0xff1e1f1c
     SPACE_ACTIVE_BORDER=0xffffd866
 
+    # Empty workspace colors
+    SPACE_EMPTY_BG=0xff1e1f1c
+    SPACE_EMPTY_FG=0xff75715e
+
     RIGHT_ICON=0xfff8f8f2
     RIGHT_LABEL=0xfff8f8f2
     ;;
@@ -49,6 +57,10 @@ case "$THEME" in
     SPACE_ACTIVE_FG=0xff1a1b26
     # SPACE_ACTIVE_BORDER=0xffbb9af7
     SPACE_ACTIVE_BORDER=0xff7aa2f7
+
+    # Empty workspace colors
+    SPACE_EMPTY_BG=0xff1a1b26
+    SPACE_EMPTY_FG=0xff565f89
 
     RIGHT_ICON=0xffc0caf5
     RIGHT_LABEL=0xffc0caf5

@@ -16,17 +16,30 @@ else
   )"
 fi
 
+# Check if workspace is empty (has no windows)
+WINDOW_COUNT="$(aerospace list-windows --workspace "$WS_ID" 2>/dev/null | wc -l | tr -d ' ')"
+
 # Load theme colors
 source "$CONFIG_DIR/themes.sh"
 
 if [ "$WS_ID" = "$FOCUSED_ON_MONITOR" ]; then
+  # Active workspace
   sketchybar --animate sin 25 --set "$NAME" \
     background.drawing=on \
     background.color="$SPACE_ACTIVE_BG" \
     background.border_width=2 \
     background.border_color="$SPACE_ACTIVE_BORDER" \
     label.color="$SPACE_ACTIVE_FG"
+elif [ "$WINDOW_COUNT" -eq 0 ]; then
+  # Empty workspace
+  sketchybar --animate sin 25 --set "$NAME" \
+    background.drawing=on \
+    background.color="$SPACE_EMPTY_BG" \
+    background.border_width=0 \
+    background.border_color="$SPACE_EMPTY_BG" \
+    label.color="$SPACE_EMPTY_FG"
 else
+  # Inactive workspace with windows
   sketchybar --animate sin 25 --set "$NAME" \
     background.drawing=on \
     background.color="$SPACE_BG" \

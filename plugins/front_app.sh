@@ -8,9 +8,13 @@ workspace_is_empty() {
 
 case "$SENDER" in
   aerospace_workspace_change)
-    # Whenever workspace changes, clear label if it has no windows
+    # Whenever workspace changes, update or clear label based on workspace state
     if workspace_is_empty; then
       sketchybar --set "$NAME" label=""
+    else
+      # Get the current front app name
+      FRONT_APP=$(osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true' 2>/dev/null)
+      sketchybar --set "$NAME" label="$FRONT_APP"
     fi
     ;;
 
