@@ -45,17 +45,19 @@ SPACE_MON1=("1" "2" "3" "4" "5")
 
 for sid in "${SPACE_MON1[@]}"; do
   sketchybar --add item "space1.$sid" left \
-    --subscribe "space1.$sid" aerospace_workspace_change \
+    --subscribe "space1.$sid" aerospace_workspace_change front_app_switched front_app_focus_changed \
     --set "space1.$sid" \
       associated_display=1 \
-      icon.drawing=off \
-      label="$sid" \
+      icon="$sid" \
+      icon.padding_left=10 \
+      icon.padding_right=4 \
+      label.font="sketchybar-app-font:Regular:16.0" \
+      label.padding_left=2 \
+      label.padding_right=10 \
       background.color="$SPACE_BG" \
       background.corner_radius=5 \
       background.height=22 \
       background.drawing=on \
-      label.padding_left=10 \
-      label.padding_right=10 \
       click_script="aerospace workspace $sid" \
       script="$PLUGIN_DIR/aerospace_workspaces_per_monitor.sh $sid 2"
 done
@@ -68,54 +70,21 @@ SPACE_MON2=("6" "7" "8" "9" "0")
 
 for sid in "${SPACE_MON2[@]}"; do
   sketchybar --add item "space2.$sid" left \
-    --subscribe "space2.$sid" aerospace_workspace_change \
+    --subscribe "space2.$sid" aerospace_workspace_change front_app_switched front_app_focus_changed \
     --set "space2.$sid" \
       associated_display=2 \
-      icon.drawing=off \
-      label="$sid" \
+      icon="$sid" \
+      icon.padding_left=10 \
+      icon.padding_right=4 \
+      label.font="sketchybar-app-font:Regular:16.0" \
+      label.padding_left=2 \
+      label.padding_right=10 \
       background.color="$SPACE_BG" \
       background.corner_radius=5 \
       background.height=22 \
       background.drawing=on \
-      label.padding_left=10 \
-      label.padding_right=10 \
       click_script="aerospace workspace $sid" \
       script="$PLUGIN_DIR/aerospace_workspaces_per_monitor.sh $sid 1"
-done
-
-
-########################################
-# LEFT SIDE – DISPLAY 1 (Laptop)
-########################################
-sketchybar --add item chevron left \
-           --set chevron icon=❯ label.drawing=off \
-           --add item front_app left \
-           --set front_app drawing=off icon.drawing=off label.drawing=off \
-             script="$PLUGIN_DIR/front_app.sh" \
-           --subscribe front_app front_app_switched aerospace_workspace_change front_app_focus_changed display_change
-
-# Pre-created, clickable slots for window icons. front_app.sh fills in as
-# many of these as there are windows (up to FRONT_APP_MAX_WINDOWS) and hides
-# the rest. Bump the number below if you regularly have more windows open in
-# a single workspace.
-#
-# Two independent pools exist, one per display, so each monitor shows the
-# icons for whichever workspace is actually visible on it (mirrors the
-# clock/clock_ext, battery/battery_ext pattern below).
-FRONT_APP_MAX_WINDOWS=10
-for i in $(seq 0 $((FRONT_APP_MAX_WINDOWS - 1))); do
-  sketchybar --add item "front_app.$i" left \
-    --set "front_app.$i" \
-      associated_display=1 \
-      drawing=off \
-      icon.drawing=off \
-      label.font="sketchybar-app-font:Regular:16.0"
-  sketchybar --add item "front_app_ext.$i" left \
-    --set "front_app_ext.$i" \
-      associated_display=2 \
-      drawing=off \
-      icon.drawing=off \
-      label.font="sketchybar-app-font:Regular:16.0"
 done
 
 

@@ -3,6 +3,9 @@
 WS_ID="$1"       # workspace id (e.g. "1", "2", "6", "7")
 MONITOR_ID="$2"  # AeroSpace monitor index: "1", "2", ...
 
+source "$CONFIG_DIR/themes.sh"
+source "$CONFIG_DIR/plugins/icon_map.sh"
+
 # How many monitors does AeroSpace see?
 MON_COUNT="$(aerospace list-monitors 2>/dev/null | grep '|' | wc -l)"
 
@@ -16,11 +19,17 @@ else
   )"
 fi
 
-# Check if workspace is empty (has no windows)
-WINDOW_COUNT="$(aerospace list-windows --workspace "$WS_ID" 2>/dev/null | wc -l | tr -d ' ')"
-
-# Load theme colors
-source "$CONFIG_DIR/themes.sh"
+# Build the row of app icons for this workspace's windows, one icon per
+# window (so an app with two windows open here shows its icon twice).
+ICONS=""
+while IFS= read -r app; do
+  [ -z "$app" ] && continue
+  __icon_map "$app"
+  ICONS="$ICONS $icon_result"
+done <<EOF
+$(aerospace list-windows --workspace "$WS_ID" --format "%{app-name}" 2>/dev/null)
+EOF
+ICONS="${ICONS# }"
 
 if [ "$WS_ID" = "$FOCUSED_ON_MONITOR" ]; then
   # Active workspace
@@ -29,15 +38,19 @@ if [ "$WS_ID" = "$FOCUSED_ON_MONITOR" ]; then
     background.color="$SPACE_ACTIVE_BG" \
     background.border_width=2 \
     background.border_color="$SPACE_ACTIVE_BORDER" \
-    label.color="$SPACE_ACTIVE_FG"
-elif [ "$WINDOW_COUNT" -eq 0 ]; then
+    icon.color="$SPACE_ACTIVE_FG" \
+    label.color="$SPACE_ACTIVE_FG" \
+    label="$ICONS"
+elif [ -z "$ICONS" ]; then
   # Empty workspace
   sketchybar --animate sin 25 --set "$NAME" \
     background.drawing=on \
     background.color="$SPACE_EMPTY_BG" \
     background.border_width=0 \
     background.border_color="$SPACE_EMPTY_BG" \
-    label.color="$SPACE_EMPTY_FG"
+    icon.color="$SPACE_EMPTY_FG" \
+    label.color="$SPACE_EMPTY_FG" \
+    label="$ICONS"
 else
   # Inactive workspace with windows
   sketchybar --animate sin 25 --set "$NAME" \
@@ -45,5 +58,7 @@ else
     background.color="$SPACE_BG" \
     background.border_width=0 \
     background.border_color="$SPACE_BG" \
-    label.color="$SPACE_FG"
+    icon.color="$SPACE_FG" \
+    label.color="$SPACE_FG" \
+    label="$ICONS"
 fi
