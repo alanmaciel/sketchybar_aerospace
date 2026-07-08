@@ -119,7 +119,7 @@ update_pill() {
     border_color="$SPACE_EMPTY_BG"
   fi
 
-  ARGS+=(--animate sin 25 --set "$bracket" \
+  ARGS+=(--set "$bracket" \
     background.drawing=on \
     background.color="$bg_color" \
     background.border_width="$border_width" \
