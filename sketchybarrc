@@ -84,6 +84,11 @@ for sid in "${SPACE_MON1[@]}"; do
       background.corner_radius=5 \
       background.height=22 \
       background.drawing=on
+
+  # Brackets ignore their own padding for spacing, so a plain spacer item is
+  # the only way to put a visible gap between two pills.
+  sketchybar --add item "space1.$sid.gap" left \
+    --set "space1.$sid.gap" associated_display=1 icon.drawing=off label.drawing=off width=8
 done
 
 
@@ -123,6 +128,9 @@ for sid in "${SPACE_MON2[@]}"; do
       background.corner_radius=5 \
       background.height=22 \
       background.drawing=on
+
+  sketchybar --add item "space2.$sid.gap" left \
+    --set "space2.$sid.gap" associated_display=2 icon.drawing=off label.drawing=off width=8
 done
 
 
