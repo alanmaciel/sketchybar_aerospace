@@ -36,6 +36,7 @@ sketchybar --default "${default[@]}"
 # AEROSPACE EVENT
 ########################################
 sketchybar --add event aerospace_workspace_change
+sketchybar --add event front_app_focus_changed
 
 ########################################
 # LAPTOP ROW (1–5) → display 1, monitor 2
@@ -95,7 +96,7 @@ sketchybar --add item chevron left \
              icon.padding_right=6 \
              label.font="sketchybar-app-font:Regular:16.0" \
              script="$PLUGIN_DIR/front_app.sh" \
-           --subscribe front_app front_app_switched aerospace_workspace_change
+           --subscribe front_app front_app_switched aerospace_workspace_change front_app_focus_changed
 
 
 ########################################

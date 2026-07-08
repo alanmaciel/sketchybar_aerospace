@@ -14,6 +14,12 @@ exec-on-workspace-change = [
   "sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE"
 ]
 
+# Notify SketchyBar when the focused window changes (e.g. moving focus
+# between windows within the same workspace)
+on-focus-changed = [
+  "exec-and-forget sketchybar --trigger front_app_focus_changed"
+]
+
 # Per-monitor workspace assignment
 # 1 | C49RG9x          # external
 # 2 | Built-in Retina  # laptop
