@@ -175,6 +175,7 @@ sketchybar --add item clock right \
 #       click_script="$PLUGIN_DIR/wifi.sh click"
 
 sketchybar --add item battery right \
+  --subscribe battery power_source_change \
   --set battery \
       associated_display=1 \
       icon= \
@@ -234,6 +235,7 @@ sketchybar --add item clock_ext right \
 #       click_script="$PLUGIN_DIR/wifi.sh click"
 
 sketchybar --add item battery_ext right \
+  --subscribe battery_ext power_source_change \
   --set battery_ext \
       associated_display=2 \
       icon= \
