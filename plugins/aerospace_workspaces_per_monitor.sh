@@ -31,6 +31,21 @@ $(aerospace list-windows --workspace "$WS_ID" --format "%{app-name}" 2>/dev/null
 EOF
 ICONS="${ICONS# }"
 
+# No icons: drop the label entirely and give its right-side padding back to
+# the icon, otherwise the reserved (empty) label space pushes the number off
+# center in the pill.
+if [ -z "$ICONS" ]; then
+  LABEL_DRAWING=off
+  ICON_PADDING_RIGHT=10
+  LABEL_PADDING_LEFT=0
+  LABEL_PADDING_RIGHT=0
+else
+  LABEL_DRAWING=on
+  ICON_PADDING_RIGHT=4
+  LABEL_PADDING_LEFT=2
+  LABEL_PADDING_RIGHT=10
+fi
+
 if [ "$WS_ID" = "$FOCUSED_ON_MONITOR" ]; then
   # Active workspace
   sketchybar --animate sin 25 --set "$NAME" \
@@ -62,3 +77,9 @@ else
     label.color="$SPACE_FG" \
     label="$ICONS"
 fi
+
+sketchybar --set "$NAME" \
+  label.drawing="$LABEL_DRAWING" \
+  icon.padding_right="$ICON_PADDING_RIGHT" \
+  label.padding_left="$LABEL_PADDING_LEFT" \
+  label.padding_right="$LABEL_PADDING_RIGHT"
