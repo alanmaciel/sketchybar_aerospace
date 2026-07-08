@@ -3,24 +3,36 @@
 source "$CONFIG_DIR/themes.sh"
 source "$CONFIG_DIR/plugins/icon_map.sh"
 
+# Must match FRONT_APP_MAX_WINDOWS in sketchybarrc.
+MAX_SLOTS=10
+
 FOCUSED_ID="$(aerospace list-windows --focused --format "%{window-id}" 2>/dev/null)"
 
-FOCUS_ICON=""
-ICONS=""
+i=0
 while IFS='|' read -r id app; do
   [ -z "$id" ] && continue
+  [ "$i" -ge "$MAX_SLOTS" ] && break
+
   __icon_map "$app"
+
   if [ "$id" = "$FOCUSED_ID" ]; then
-    FOCUS_ICON="$icon_result"
+    COLOR="$SPACE_ACTIVE_BORDER"
   else
-    ICONS="$ICONS $icon_result"
+    COLOR="$BAR_FG"
   fi
+
+  sketchybar --set "front_app.$i" \
+    drawing=on \
+    label="$icon_result" \
+    label.color="$COLOR" \
+    click_script="aerospace focus --window-id $id"
+
+  i=$((i + 1))
 done <<EOF
 $(aerospace list-windows --workspace focused --format "%{window-id}|%{app-name}" 2>/dev/null)
 EOF
 
-if [ -n "$FOCUS_ICON" ]; then
-  sketchybar --set "$NAME" icon.drawing=on icon="$FOCUS_ICON" icon.color="$SPACE_ACTIVE_BORDER" label="${ICONS# }"
-else
-  sketchybar --set "$NAME" icon.drawing=off label="${ICONS# }"
-fi
+while [ "$i" -lt "$MAX_SLOTS" ]; do
+  sketchybar --set "front_app.$i" drawing=off
+  i=$((i + 1))
+done

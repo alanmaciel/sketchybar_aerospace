@@ -90,13 +90,22 @@ done
 sketchybar --add item chevron left \
            --set chevron icon=❯ label.drawing=off \
            --add item front_app left \
-           --set front_app icon.drawing=off \
-             icon.font="sketchybar-app-font:Regular:16.0" \
-             icon.padding_left=8 \
-             icon.padding_right=6 \
-             label.font="sketchybar-app-font:Regular:16.0" \
+           --set front_app drawing=off icon.drawing=off label.drawing=off \
              script="$PLUGIN_DIR/front_app.sh" \
            --subscribe front_app front_app_switched aerospace_workspace_change front_app_focus_changed
+
+# Pre-created, clickable slots for the focused workspace's window icons.
+# front_app.sh fills in as many of these as there are windows (up to
+# FRONT_APP_MAX_WINDOWS) and hides the rest. Bump the number below if you
+# regularly have more windows open in a single workspace.
+FRONT_APP_MAX_WINDOWS=10
+for i in $(seq 0 $((FRONT_APP_MAX_WINDOWS - 1))); do
+  sketchybar --add item "front_app.$i" left \
+    --set "front_app.$i" \
+      drawing=off \
+      icon.drawing=off \
+      label.font="sketchybar-app-font:Regular:16.0"
+done
 
 
 ########################################
