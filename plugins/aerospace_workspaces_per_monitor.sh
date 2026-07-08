@@ -6,6 +6,13 @@ MONITOR_ID="$2"  # AeroSpace monitor index: "1", "2", ...
 source "$CONFIG_DIR/themes.sh"
 source "$CONFIG_DIR/plugins/icon_map.sh"
 
+# Must match WORKSPACE_MAX_WINDOWS in sketchybarrc.
+MAX_SLOTS=10
+
+# $NAME is the "num" item this script is attached to, e.g. "space1.3.num".
+BRACKET_NAME="${NAME%.num}"
+SLOT_PREFIX="$BRACKET_NAME.slot"
+
 # How many monitors does AeroSpace see?
 MON_COUNT="$(aerospace list-monitors 2>/dev/null | grep '|' | wc -l)"
 
@@ -19,68 +26,92 @@ else
   )"
 fi
 
-# Build the row of app icons for this workspace's windows, one icon per
-# window (so an app with two windows open here shows its icon twice). No
-# separator character between them — a plain space renders too wide in the
-# icon font, and the glyphs already carry their own side bearing.
-ICONS=""
-while IFS= read -r app; do
-  [ -z "$app" ] && continue
-  __icon_map "$app"
-  ICONS="$ICONS$icon_result"
-done <<EOF
-$(aerospace list-windows --workspace "$WS_ID" --format "%{app-name}" 2>/dev/null)
-EOF
+FOCUSED_WINDOW_ID="$(aerospace list-windows --focused --format "%{window-id}" 2>/dev/null)"
 
-# No icons: drop the label entirely and give its right-side padding back to
-# the icon, otherwise the reserved (empty) label space pushes the number off
-# center in the pill.
-if [ -z "$ICONS" ]; then
-  LABEL_DRAWING=off
-  ICON_PADDING_RIGHT=10
-  LABEL_PADDING_LEFT=0
-  LABEL_PADDING_RIGHT=0
-else
-  LABEL_DRAWING=on
-  ICON_PADDING_RIGHT=10
-  LABEL_PADDING_LEFT=6
-  LABEL_PADDING_RIGHT=10
-fi
+# Fill one slot per window with that app's icon (so an app with two windows
+# open here shows its icon twice), remembering which slot is the globally
+# focused window so it can be colored differently below.
+FOCUSED_SLOT=""
+i=0
+while IFS='|' read -r id app; do
+  [ -z "$id" ] && continue
+  [ "$i" -ge "$MAX_SLOTS" ] && break
+
+  __icon_map "$app"
+
+  sketchybar --set "$SLOT_PREFIX.$i" \
+    drawing=on \
+    label="$icon_result" \
+    click_script="aerospace focus --window-id $id"
+
+  [ "$id" = "$FOCUSED_WINDOW_ID" ] && FOCUSED_SLOT="$i"
+
+  i=$((i + 1))
+done <<EOF
+$(aerospace list-windows --workspace "$WS_ID" --format "%{window-id}|%{app-name}" 2>/dev/null)
+EOF
+WINDOW_COUNT="$i"
+
+while [ "$i" -lt "$MAX_SLOTS" ]; do
+  sketchybar --set "$SLOT_PREFIX.$i" drawing=off
+  i=$((i + 1))
+done
 
 if [ "$WS_ID" = "$FOCUSED_ON_MONITOR" ]; then
   # Active workspace
-  sketchybar --animate sin 25 --set "$NAME" \
-    background.drawing=on \
-    background.color="$SPACE_ACTIVE_BG" \
-    background.border_width=2 \
-    background.border_color="$SPACE_ACTIVE_BORDER" \
-    icon.color="$SPACE_ACTIVE_FG" \
-    label.color="$SPACE_ACTIVE_FG" \
-    label="$ICONS"
-elif [ -z "$ICONS" ]; then
+  STATE_FG="$SPACE_ACTIVE_FG"
+  BG_COLOR="$SPACE_ACTIVE_BG"
+  BORDER_WIDTH=2
+  BORDER_COLOR="$SPACE_ACTIVE_BORDER"
+elif [ "$WINDOW_COUNT" -eq 0 ]; then
   # Empty workspace
-  sketchybar --animate sin 25 --set "$NAME" \
-    background.drawing=on \
-    background.color="$SPACE_EMPTY_BG" \
-    background.border_width=0 \
-    background.border_color="$SPACE_EMPTY_BG" \
-    icon.color="$SPACE_EMPTY_FG" \
-    label.color="$SPACE_EMPTY_FG" \
-    label="$ICONS"
+  STATE_FG="$SPACE_EMPTY_FG"
+  BG_COLOR="$SPACE_EMPTY_BG"
+  BORDER_WIDTH=0
+  BORDER_COLOR="$SPACE_EMPTY_BG"
 else
   # Inactive workspace with windows
-  sketchybar --animate sin 25 --set "$NAME" \
-    background.drawing=on \
-    background.color="$SPACE_BG" \
-    background.border_width=0 \
-    background.border_color="$SPACE_BG" \
-    icon.color="$SPACE_FG" \
-    label.color="$SPACE_FG" \
-    label="$ICONS"
+  STATE_FG="$SPACE_FG"
+  BG_COLOR="$SPACE_BG"
+  BORDER_WIDTH=0
+  BORDER_COLOR="$SPACE_BG"
 fi
 
-sketchybar --set "$NAME" \
-  label.drawing="$LABEL_DRAWING" \
-  icon.padding_right="$ICON_PADDING_RIGHT" \
-  label.padding_left="$LABEL_PADDING_LEFT" \
-  label.padding_right="$LABEL_PADDING_RIGHT"
+# Color each visible icon: the focused window gets a dedicated highlight
+# color, every other icon in this pill gets the workspace's state color.
+# The last visible icon also gets the pill's right-edge padding back, since
+# no separator is used between icons (a plain space renders too wide in the
+# icon font — the glyphs already carry their own side bearing).
+j=0
+while [ "$j" -lt "$WINDOW_COUNT" ]; do
+  if [ "$j" = "$FOCUSED_SLOT" ]; then
+    ICON_COLOR="$SPACE_FOCUSED_FG"
+  else
+    ICON_COLOR="$STATE_FG"
+  fi
+
+  if [ "$j" -eq "$((WINDOW_COUNT - 1))" ]; then
+    PADDING_RIGHT=10
+  else
+    PADDING_RIGHT=0
+  fi
+
+  sketchybar --set "$SLOT_PREFIX.$j" label.color="$ICON_COLOR" label.padding_right="$PADDING_RIGHT"
+  j=$((j + 1))
+done
+
+# No icons: mirror the number's left padding on its right so it stays
+# centered; otherwise give it a wider gap before the first icon.
+if [ "$WINDOW_COUNT" -eq 0 ]; then
+  NUM_PADDING_RIGHT=10
+else
+  NUM_PADDING_RIGHT=16
+fi
+
+sketchybar --animate sin 25 --set "$BRACKET_NAME" \
+  background.drawing=on \
+  background.color="$BG_COLOR" \
+  background.border_width="$BORDER_WIDTH" \
+  background.border_color="$BORDER_COLOR"
+
+sketchybar --set "$NAME" icon.color="$STATE_FG" icon.padding_right="$NUM_PADDING_RIGHT"

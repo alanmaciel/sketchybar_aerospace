@@ -22,6 +22,9 @@ case "$THEME" in
 
     RIGHT_ICON=0xffebdbb2
     RIGHT_LABEL=0xffebdbb2
+
+    # Focused window's app icon, inside the active workspace pill
+    SPACE_FOCUSED_FG=0xffffffff
     ;;
 
   monokai_octagon)
@@ -43,6 +46,9 @@ case "$THEME" in
 
     RIGHT_ICON=0xfff8f8f2
     RIGHT_LABEL=0xfff8f8f2
+
+    # Focused window's app icon, inside the active workspace pill
+    SPACE_FOCUSED_FG=0xffffffff
     ;;
 
   tokyonight|*)
@@ -64,5 +70,8 @@ case "$THEME" in
 
     RIGHT_ICON=0xffc0caf5
     RIGHT_LABEL=0xffc0caf5
+
+    # Focused window's app icon, inside the active workspace pill
+    SPACE_FOCUSED_FG=0xffffffff
     ;;
 esac

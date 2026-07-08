@@ -41,25 +41,49 @@ sketchybar --add event front_app_focus_changed
 ########################################
 # LAPTOP ROW (1–5) → display 1, monitor 2
 ########################################
+
+# Must match MAX_SLOTS in aerospace_workspaces_per_monitor.sh. Bump if you
+# regularly have more windows open in a single workspace.
+WORKSPACE_MAX_WINDOWS=10
+
 SPACE_MON1=("1" "2" "3" "4" "5")
 
+# Each pill is a bracket merging a "num" item (the workspace digit) with a
+# fixed pool of "slot" items (one per potential window, up to
+# WORKSPACE_MAX_WINDOWS). aerospace_workspaces_per_monitor.sh fills in one
+# slot per window with that app's icon and colors the focused window's icon
+# differently, so the bracket's members render as a single pill.
 for sid in "${SPACE_MON1[@]}"; do
-  sketchybar --add item "space1.$sid" left \
-    --subscribe "space1.$sid" aerospace_workspace_change front_app_switched front_app_focus_changed \
-    --set "space1.$sid" \
+  sketchybar --add item "space1.$sid.num" left \
+    --subscribe "space1.$sid.num" aerospace_workspace_change front_app_switched front_app_focus_changed \
+    --set "space1.$sid.num" \
       associated_display=1 \
       icon="$sid" \
       icon.padding_left=10 \
-      icon.padding_right=4 \
-      label.font="sketchybar-app-font:Regular:16.0" \
-      label.padding_left=2 \
-      label.padding_right=10 \
+      icon.padding_right=10 \
+      label.drawing=off \
+      click_script="aerospace workspace $sid" \
+      script="$PLUGIN_DIR/aerospace_workspaces_per_monitor.sh $sid 2"
+
+  SLOTS=()
+  for i in $(seq 0 $((WORKSPACE_MAX_WINDOWS - 1))); do
+    sketchybar --add item "space1.$sid.slot.$i" left \
+      --set "space1.$sid.slot.$i" \
+        associated_display=1 \
+        drawing=off \
+        icon.drawing=off \
+        label.font="sketchybar-app-font:Regular:16.0" \
+        label.padding_left=0 \
+        label.padding_right=0
+    SLOTS+=("space1.$sid.slot.$i")
+  done
+
+  sketchybar --add bracket "space1.$sid" "space1.$sid.num" "${SLOTS[@]}" \
+    --set "space1.$sid" \
       background.color="$SPACE_BG" \
       background.corner_radius=5 \
       background.height=22 \
-      background.drawing=on \
-      click_script="aerospace workspace $sid" \
-      script="$PLUGIN_DIR/aerospace_workspaces_per_monitor.sh $sid 2"
+      background.drawing=on
 done
 
 
@@ -69,22 +93,36 @@ done
 SPACE_MON2=("6" "7" "8" "9" "0")
 
 for sid in "${SPACE_MON2[@]}"; do
-  sketchybar --add item "space2.$sid" left \
-    --subscribe "space2.$sid" aerospace_workspace_change front_app_switched front_app_focus_changed \
-    --set "space2.$sid" \
+  sketchybar --add item "space2.$sid.num" left \
+    --subscribe "space2.$sid.num" aerospace_workspace_change front_app_switched front_app_focus_changed \
+    --set "space2.$sid.num" \
       associated_display=2 \
       icon="$sid" \
       icon.padding_left=10 \
-      icon.padding_right=4 \
-      label.font="sketchybar-app-font:Regular:16.0" \
-      label.padding_left=2 \
-      label.padding_right=10 \
+      icon.padding_right=10 \
+      label.drawing=off \
+      click_script="aerospace workspace $sid" \
+      script="$PLUGIN_DIR/aerospace_workspaces_per_monitor.sh $sid 1"
+
+  SLOTS=()
+  for i in $(seq 0 $((WORKSPACE_MAX_WINDOWS - 1))); do
+    sketchybar --add item "space2.$sid.slot.$i" left \
+      --set "space2.$sid.slot.$i" \
+        associated_display=2 \
+        drawing=off \
+        icon.drawing=off \
+        label.font="sketchybar-app-font:Regular:16.0" \
+        label.padding_left=0 \
+        label.padding_right=0
+    SLOTS+=("space2.$sid.slot.$i")
+  done
+
+  sketchybar --add bracket "space2.$sid" "space2.$sid.num" "${SLOTS[@]}" \
+    --set "space2.$sid" \
       background.color="$SPACE_BG" \
       background.corner_radius=5 \
       background.height=22 \
-      background.drawing=on \
-      click_script="aerospace workspace $sid" \
-      script="$PLUGIN_DIR/aerospace_workspaces_per_monitor.sh $sid 1"
+      background.drawing=on
 done
 
 
