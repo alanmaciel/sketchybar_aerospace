@@ -20,16 +20,17 @@ else
 fi
 
 # Build the row of app icons for this workspace's windows, one icon per
-# window (so an app with two windows open here shows its icon twice).
+# window (so an app with two windows open here shows its icon twice). No
+# separator character between them — a plain space renders too wide in the
+# icon font, and the glyphs already carry their own side bearing.
 ICONS=""
 while IFS= read -r app; do
   [ -z "$app" ] && continue
   __icon_map "$app"
-  ICONS="$ICONS $icon_result"
+  ICONS="$ICONS$icon_result"
 done <<EOF
 $(aerospace list-windows --workspace "$WS_ID" --format "%{app-name}" 2>/dev/null)
 EOF
-ICONS="${ICONS# }"
 
 # No icons: drop the label entirely and give its right-side padding back to
 # the icon, otherwise the reserved (empty) label space pushes the number off
