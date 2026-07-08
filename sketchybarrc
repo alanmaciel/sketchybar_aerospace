@@ -42,28 +42,27 @@ sketchybar --add event front_app_focus_changed
 # LAPTOP ROW (1–5) → display 1, monitor 2
 ########################################
 
-# Must match MAX_SLOTS in aerospace_workspaces_per_monitor.sh. Bump if you
-# regularly have more windows open in a single workspace.
+# Must match MAX_SLOTS in workspace_pills.sh. Bump if you regularly have
+# more windows open in a single workspace.
 WORKSPACE_MAX_WINDOWS=10
 
 SPACE_MON1=("1" "2" "3" "4" "5")
 
 # Each pill is a bracket merging a "num" item (the workspace digit) with a
 # fixed pool of "slot" items (one per potential window, up to
-# WORKSPACE_MAX_WINDOWS). aerospace_workspaces_per_monitor.sh fills in one
-# slot per window with that app's icon and colors the focused window's icon
-# differently, so the bracket's members render as a single pill.
+# WORKSPACE_MAX_WINDOWS). workspace_pills.sh (a single controller item, see
+# below) fills in one slot per window with that app's icon and colors the
+# focused window's icon differently, so the bracket's members render as a
+# single pill.
 for sid in "${SPACE_MON1[@]}"; do
   sketchybar --add item "space1.$sid.num" left \
-    --subscribe "space1.$sid.num" aerospace_workspace_change front_app_switched front_app_focus_changed \
     --set "space1.$sid.num" \
       associated_display=1 \
       icon="$sid" \
       icon.padding_left=10 \
       icon.padding_right=10 \
       label.drawing=off \
-      click_script="aerospace workspace $sid" \
-      script="$PLUGIN_DIR/aerospace_workspaces_per_monitor.sh $sid 2"
+      click_script="aerospace workspace $sid"
 
   SLOTS=()
   for i in $(seq 0 $((WORKSPACE_MAX_WINDOWS - 1))); do
@@ -99,15 +98,13 @@ SPACE_MON2=("6" "7" "8" "9" "0")
 
 for sid in "${SPACE_MON2[@]}"; do
   sketchybar --add item "space2.$sid.num" left \
-    --subscribe "space2.$sid.num" aerospace_workspace_change front_app_switched front_app_focus_changed \
     --set "space2.$sid.num" \
       associated_display=2 \
       icon="$sid" \
       icon.padding_left=10 \
       icon.padding_right=10 \
       label.drawing=off \
-      click_script="aerospace workspace $sid" \
-      script="$PLUGIN_DIR/aerospace_workspaces_per_monitor.sh $sid 1"
+      click_script="aerospace workspace $sid"
 
   SLOTS=()
   for i in $(seq 0 $((WORKSPACE_MAX_WINDOWS - 1))); do
@@ -132,6 +129,14 @@ for sid in "${SPACE_MON2[@]}"; do
   sketchybar --add item "space2.$sid.gap" left \
     --set "space2.$sid.gap" associated_display=2 icon.drawing=off label.drawing=off width=8
 done
+
+# Single invisible controller that updates every workspace pill in one
+# script run (see workspace_pills.sh for why this is one item instead of
+# one script per pill).
+sketchybar --add item workspace_pills left \
+  --set workspace_pills drawing=off icon.drawing=off label.drawing=off \
+    script="$PLUGIN_DIR/workspace_pills.sh" \
+  --subscribe workspace_pills aerospace_workspace_change front_app_switched front_app_focus_changed
 
 
 ########################################
