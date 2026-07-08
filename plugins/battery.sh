@@ -30,7 +30,7 @@ fi
 if $charging; then
   icon="$icon"
 elif $ac_attached; then
-  icon="$icon"
+  icon="󰚥$icon"
 fi
 
 if [ "$MODE" = "click" ]; then
