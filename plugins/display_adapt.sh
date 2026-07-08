@@ -7,8 +7,8 @@ else
   MON_COUNT=1
 fi
 
-SPACE_MON1=("1" "2" "3" "4" "5")
-SPACE_MON2=("6" "7" "8" "9" "0")
+SPACE_MON1=("1" "2" "3")
+SPACE_MON2=("4" "5" "6")
 
 # Must match WORKSPACE_MAX_WINDOWS in sketchybarrc.
 WORKSPACE_MAX_WINDOWS=10

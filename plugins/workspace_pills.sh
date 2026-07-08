@@ -20,8 +20,8 @@ source "$CONFIG_DIR/plugins/icon_map.sh"
 # Must match WORKSPACE_MAX_WINDOWS in sketchybarrc.
 MAX_SLOTS=10
 
-SPACE_MON1=(1 2 3 4 5)
-SPACE_MON2=(6 7 8 9 0)
+SPACE_MON1=(1 2 3)
+SPACE_MON2=(4 5 6)
 
 # How many monitors does AeroSpace see?
 MON_COUNT="$(aerospace list-monitors 2>/dev/null | grep -c '|')"
