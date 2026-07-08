@@ -36,61 +36,107 @@ sketchybar --default "${default[@]}"
 # AEROSPACE EVENT
 ########################################
 sketchybar --add event aerospace_workspace_change
+sketchybar --add event front_app_focus_changed
 
 ########################################
-# LAPTOP ROW (1–5) → display 1, monitor 2
+# LAPTOP ROW (1–3) → display 1, monitor 2
 ########################################
-SPACE_MON1=("1" "2" "3" "4" "5")
 
+# Must match MAX_SLOTS in workspace_pills.sh. Bump if you regularly have
+# more windows open in a single workspace.
+WORKSPACE_MAX_WINDOWS=10
+
+SPACE_MON1=("1" "2" "3")
+
+# Each pill is a bracket merging a "num" item (the workspace digit) with a
+# fixed pool of "slot" items (one per potential window, up to
+# WORKSPACE_MAX_WINDOWS). workspace_pills.sh (a single controller item, see
+# below) fills in one slot per window with that app's icon and colors the
+# focused window's icon differently, so the bracket's members render as a
+# single pill.
 for sid in "${SPACE_MON1[@]}"; do
-  sketchybar --add item "space1.$sid" left \
-    --subscribe "space1.$sid" aerospace_workspace_change \
-    --set "space1.$sid" \
+  sketchybar --add item "space1.$sid.num" left \
+    --set "space1.$sid.num" \
       associated_display=1 \
-      icon.drawing=off \
-      label="$sid" \
+      icon="$sid" \
+      icon.padding_left=10 \
+      icon.padding_right=10 \
+      label.drawing=off \
+      click_script="aerospace workspace $sid"
+
+  SLOTS=()
+  for i in $(seq 0 $((WORKSPACE_MAX_WINDOWS - 1))); do
+    sketchybar --add item "space1.$sid.slot.$i" left \
+      --set "space1.$sid.slot.$i" \
+        associated_display=1 \
+        drawing=off \
+        icon.drawing=off \
+        label.font="sketchybar-app-font:Regular:16.0" \
+        label.padding_left=0 \
+        label.padding_right=0
+    SLOTS+=("space1.$sid.slot.$i")
+  done
+
+  sketchybar --add bracket "space1.$sid" "space1.$sid.num" "${SLOTS[@]}" \
+    --set "space1.$sid" \
       background.color="$SPACE_BG" \
       background.corner_radius=5 \
       background.height=22 \
-      background.drawing=on \
-      label.padding_left=10 \
-      label.padding_right=10 \
-      click_script="aerospace workspace $sid" \
-      script="$PLUGIN_DIR/aerospace_workspaces_per_monitor.sh $sid 2"
+      background.drawing=on
+
+  # Brackets ignore their own padding for spacing, so a plain spacer item is
+  # the only way to put a visible gap between two pills.
+  sketchybar --add item "space1.$sid.gap" left \
+    --set "space1.$sid.gap" associated_display=1 icon.drawing=off label.drawing=off width=8
 done
 
 
 ########################################
-# EXTERNAL ROW (6–0) → display 2, monitor 1
+# EXTERNAL ROW (4–6) → display 2, monitor 1
 ########################################
-SPACE_MON2=("6" "7" "8" "9" "0")
+SPACE_MON2=("4" "5" "6")
 
 for sid in "${SPACE_MON2[@]}"; do
-  sketchybar --add item "space2.$sid" left \
-    --subscribe "space2.$sid" aerospace_workspace_change \
-    --set "space2.$sid" \
+  sketchybar --add item "space2.$sid.num" left \
+    --set "space2.$sid.num" \
       associated_display=2 \
-      icon.drawing=off \
-      label="$sid" \
+      icon="$sid" \
+      icon.padding_left=10 \
+      icon.padding_right=10 \
+      label.drawing=off \
+      click_script="aerospace workspace $sid"
+
+  SLOTS=()
+  for i in $(seq 0 $((WORKSPACE_MAX_WINDOWS - 1))); do
+    sketchybar --add item "space2.$sid.slot.$i" left \
+      --set "space2.$sid.slot.$i" \
+        associated_display=2 \
+        drawing=off \
+        icon.drawing=off \
+        label.font="sketchybar-app-font:Regular:16.0" \
+        label.padding_left=0 \
+        label.padding_right=0
+    SLOTS+=("space2.$sid.slot.$i")
+  done
+
+  sketchybar --add bracket "space2.$sid" "space2.$sid.num" "${SLOTS[@]}" \
+    --set "space2.$sid" \
       background.color="$SPACE_BG" \
       background.corner_radius=5 \
       background.height=22 \
-      background.drawing=on \
-      label.padding_left=10 \
-      label.padding_right=10 \
-      click_script="aerospace workspace $sid" \
-      script="$PLUGIN_DIR/aerospace_workspaces_per_monitor.sh $sid 1"
+      background.drawing=on
+
+  sketchybar --add item "space2.$sid.gap" left \
+    --set "space2.$sid.gap" associated_display=2 icon.drawing=off label.drawing=off width=8
 done
 
-
-########################################
-# LEFT SIDE – DISPLAY 1 (Laptop)
-########################################
-sketchybar --add item chevron left \
-           --set chevron icon=❯ label.drawing=off \
-           --add item front_app left \
-           --set front_app icon.drawing=off script="$PLUGIN_DIR/front_app.sh" \
-           --subscribe front_app front_app_switched aerospace_workspace_change
+# Single invisible controller that updates every workspace pill in one
+# script run (see workspace_pills.sh for why this is one item instead of
+# one script per pill).
+sketchybar --add item workspace_pills left \
+  --set workspace_pills drawing=off icon.drawing=off label.drawing=off \
+    script="$PLUGIN_DIR/workspace_pills.sh" \
+  --subscribe workspace_pills aerospace_workspace_change front_app_switched front_app_focus_changed
 
 
 ########################################
@@ -134,6 +180,7 @@ sketchybar --add item clock right \
 #       click_script="$PLUGIN_DIR/wifi.sh click"
 
 sketchybar --add item battery right \
+  --subscribe battery power_source_change \
   --set battery \
       associated_display=1 \
       icon= \
@@ -193,6 +240,7 @@ sketchybar --add item clock_ext right \
 #       click_script="$PLUGIN_DIR/wifi.sh click"
 
 sketchybar --add item battery_ext right \
+  --subscribe battery_ext power_source_change \
   --set battery_ext \
       associated_display=2 \
       icon= \

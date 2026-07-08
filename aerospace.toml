@@ -14,24 +14,26 @@ exec-on-workspace-change = [
   "sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE"
 ]
 
+# Notify SketchyBar when the focused window changes (e.g. moving focus
+# between windows within the same workspace)
+on-focus-changed = [
+  "exec-and-forget sketchybar --trigger front_app_focus_changed"
+]
+
 # Per-monitor workspace assignment
 # 1 | C49RG9x          # external
 # 2 | Built-in Retina  # laptop
 
 [workspace-to-monitor-force-assignment]
-# Laptop (Built-in Retina, monitor 2) → 1–5
+# Laptop (Built-in Retina, monitor 2) → 1–3
 "1" = 2
 "2" = 2
 "3" = 2
-"4" = 2
-"5" = 2
 
-# External (C49RG9x, monitor 1) → 6–0
+# External (C49RG9x, monitor 1) → 4–6
+"4" = 1
+"5" = 1
 "6" = 1
-"7" = 1
-"8" = 1
-"9" = 1
-"0" = 1
 
 # Gaps (so windows don't cover SketchyBar)
 [gaps]
@@ -66,32 +68,24 @@ alt-shift-equal = "resize smart +50"
 alt-slash = "layout tiles horizontal vertical"
 alt-comma = "layout accordion horizontal vertical"
 
-# Workspaces – monitor 1
+# Workspaces – monitor 2 (laptop)
 alt-1 = "workspace 1"
 alt-2 = "workspace 2"
 alt-3 = "workspace 3"
+
+# Workspaces – monitor 1 (external)
 alt-4 = "workspace 4"
 alt-5 = "workspace 5"
-
-# Workspaces – monitor 2
 alt-6 = "workspace 6"
-alt-7 = "workspace 7"
-alt-8 = "workspace 8"
-alt-9 = "workspace 9"
-alt-0 = "workspace 0"
 
 # Move window to workspace
 alt-shift-1 = "move-node-to-workspace 1"
 alt-shift-2 = "move-node-to-workspace 2"
 alt-shift-3 = "move-node-to-workspace 3"
+
 alt-shift-4 = "move-node-to-workspace 4"
 alt-shift-5 = "move-node-to-workspace 5"
-
 alt-shift-6 = "move-node-to-workspace 6"
-alt-shift-7 = "move-node-to-workspace 7"
-alt-shift-8 = "move-node-to-workspace 8"
-alt-shift-9 = "move-node-to-workspace 9"
-alt-shift-0 = "move-node-to-workspace 0"
 
 # Workspace back/forward
 alt-tab       = "workspace-back-and-forth"
