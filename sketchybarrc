@@ -37,6 +37,7 @@ sketchybar --default "${default[@]}"
 ########################################
 sketchybar --add event aerospace_workspace_change
 sketchybar --add event front_app_focus_changed
+sketchybar --add event aerospace_window_change
 
 ########################################
 # LAPTOP ROW (1–3) → display 1, monitor 2
@@ -132,11 +133,16 @@ done
 
 # Single invisible controller that updates every workspace pill in one
 # script run (see workspace_pills.sh for why this is one item instead of
-# one script per pill).
+# one script per pill). update_freq=1 is a cheap polling fallback for
+# window *closes*, which AeroSpace has no dedicated event for (unlike
+# aerospace_window_change below, used for opens) — without it, closing a
+# window in a non-focused workspace wouldn't refresh its pill until the
+# next workspace switch.
 sketchybar --add item workspace_pills left \
   --set workspace_pills drawing=off icon.drawing=off label.drawing=off \
+    update_freq=1 \
     script="$PLUGIN_DIR/workspace_pills.sh" \
-  --subscribe workspace_pills aerospace_workspace_change front_app_switched front_app_focus_changed
+  --subscribe workspace_pills aerospace_workspace_change front_app_switched front_app_focus_changed aerospace_window_change
 
 
 ########################################
