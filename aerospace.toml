@@ -20,6 +20,12 @@ on-focus-changed = [
   "exec-and-forget sketchybar --trigger front_app_focus_changed"
 ]
 
+# Notify SketchyBar the instant any new window is detected, so its pill
+# icon appears immediately instead of waiting for a workspace/focus event
+# (no `if` filter means this fires for every app, not just specific ones).
+[[on-window-detected]]
+run = ["exec-and-forget sketchybar --trigger aerospace_window_change"]
+
 # Per-monitor workspace assignment
 # 1 | C49RG9x          # external
 # 2 | Built-in Retina  # laptop
