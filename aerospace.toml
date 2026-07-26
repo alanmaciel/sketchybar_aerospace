@@ -43,13 +43,13 @@ run = ["exec-and-forget sketchybar --trigger aerospace_window_change"]
 
 # Gaps (so windows don't cover SketchyBar)
 [gaps]
-inner.horizontal = 16
-inner.vertical   = 16
-outer.left       = 16
-outer.right      = 16
-outer.bottom     = 16
+inner.horizontal = 6
+inner.vertical   = 6
+outer.left       = 6
+outer.right      = 6
+outer.bottom     = 5
 # 32px gap only on external "C49RG9x", 0px on all others (laptop)
-outer.top        = [{ monitor."C49RG9x" = 40 }, 16]
+outer.top        = [{ monitor."C49RG9x" = 40 }, 10]
 
 # MAIN MODE KEYBINDINGS
 [mode.main.binding]
