@@ -1,5 +1,18 @@
 #!/usr/bin/env bash
 
+LOCK_DIR="${TMPDIR:-/tmp}/sketchybar-workspace-pills.lock"
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  old_pid="$(cat "$LOCK_DIR/pid" 2>/dev/null)"
+  if [ -n "$old_pid" ] && ! kill -0 "$old_pid" 2>/dev/null; then
+    rm -rf "$LOCK_DIR"
+    mkdir "$LOCK_DIR" 2>/dev/null || exit 0
+  else
+    exit 0
+  fi
+fi
+printf '%s\n' "$$" >"$LOCK_DIR/pid"
+trap 'rm -rf "$LOCK_DIR"' EXIT
+
 # Single controller for all workspace pills (space1.1..5, space2.6..0).
 # Runs once per event and fans out to every pill internally, instead of
 # each pill running its own copy of this script — that used to mean ~40
