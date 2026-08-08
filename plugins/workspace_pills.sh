@@ -13,42 +13,42 @@ fi
 printf '%s\n' "$$" >"$LOCK_DIR/pid"
 trap 'rm -rf "$LOCK_DIR"' EXIT
 
-# Single controller for all workspace pills (space1.1..5, space2.6..0).
-# Runs once per event and fans out to every pill internally, instead of
-# each pill running its own copy of this script — that used to mean ~40
-# separate `aerospace` CLI round-trips (list-monitors/list-workspaces/
-# list-windows, several per pill) for a single workspace change, which is
-# what made switching workspaces feel sluggish. Here every needed fact is
-# fetched exactly once and reused for all 10 pills.
+# Single controller for all 6 workspace pills (space.1..space.6), whichever
+# monitor each currently lives on (see monitor_groups.sh — 1/2/3 connected
+# monitors changes the grouping). Runs once per event and fans out to every
+# pill internally, instead of each pill running its own copy of this script —
+# that used to mean ~40 separate `aerospace` CLI round-trips (list-monitors/
+# list-workspaces/list-windows, several per pill) for a single workspace
+# change, which is what made switching workspaces feel sluggish. Here every
+# needed fact is fetched exactly once and reused for all 6 pills.
 #
 # The `sketchybar --set` calls are batched into one invocation at the end
 # too (ARGS accumulator) rather than issued one at a time — each is its own
 # process talking to the sketchybar daemon over its socket, so ~120
-# individual calls (10 pills x up to 12 property updates each) noticeably
+# individual calls (6 pills x up to 12 property updates each) noticeably
 # adds up over one batched call with ~120 fragments.
 
 source "$CONFIG_DIR/themes.sh"
 source "$CONFIG_DIR/plugins/icon_map.sh"
+source "$CONFIG_DIR/plugins/monitor_groups.sh"
 
 # Must match WORKSPACE_MAX_WINDOWS in sketchybarrc.
 MAX_SLOTS=10
 
-SPACE_MON1=(1 2 3)
-SPACE_MON2=(4 5 6)
-
 # How many monitors does AeroSpace see?
 MON_COUNT="$(aerospace list-monitors 2>/dev/null | grep -c '|')"
+[ "$MON_COUNT" -ge 1 ] || MON_COUNT=1
 
+build_pos_to_monid "$MON_COUNT"
+
+# Focused/visible workspace per AeroSpace monitor-id, indexed 1..MON_COUNT.
+FOCUSED=()
 if [ "$MON_COUNT" -le 1 ]; then
-  # Single-monitor setup: both rows just track the one focused workspace.
-  FOCUSED_WS="$(aerospace list-workspaces --focused 2>/dev/null | head -n 1)"
-  FOCUSED_MON1="$FOCUSED_WS"
-  FOCUSED_MON2="$FOCUSED_WS"
+  FOCUSED[1]="$(aerospace list-workspaces --focused 2>/dev/null | head -n 1)"
 else
-  # Laptop display (space1.*) is AeroSpace monitor 2; external (space2.*)
-  # is monitor 1 — same mapping used throughout sketchybarrc.
-  FOCUSED_MON1="$(aerospace list-workspaces --monitor 2 --visible 2>/dev/null | head -n 1)"
-  FOCUSED_MON2="$(aerospace list-workspaces --monitor 1 --visible 2>/dev/null | head -n 1)"
+  for i in $(seq 1 "$MON_COUNT"); do
+    FOCUSED[$i]="$(aerospace list-workspaces --monitor "$i" --visible 2>/dev/null | head -n 1)"
+  done
 fi
 
 FOCUSED_WINDOW_ID="$(aerospace list-windows --focused --format "%{window-id}" 2>/dev/null)"
@@ -63,8 +63,8 @@ ALL_WINDOWS="$(aerospace list-windows --all --format "%{workspace}|%{window-id}|
 ARGS=()
 
 update_pill() {
-  local prefix="$1" sid="$2" focused_ws="$3"
-  local bracket="$prefix.$sid"
+  local sid="$1" focused_ws="$2"
+  local bracket="space.$sid"
   local num="$bracket.num"
   local slot_prefix="$bracket.slot"
 
@@ -141,12 +141,10 @@ update_pill() {
   ARGS+=(--set "$num" icon.color="$state_fg" icon.padding_right="$num_padding_right")
 }
 
-for sid in "${SPACE_MON1[@]}"; do
-  update_pill space1 "$sid" "$FOCUSED_MON1"
-done
-
-for sid in "${SPACE_MON2[@]}"; do
-  update_pill space2 "$sid" "$FOCUSED_MON2"
+for ws in 1 2 3 4 5 6; do
+  pos="$(workspace_target_monitor "$ws" "$MON_COUNT")"
+  mon_id="${POS_TO_MONID[$pos]}"
+  update_pill "$ws" "${FOCUSED[$mon_id]}"
 done
 
 sketchybar "${ARGS[@]}"

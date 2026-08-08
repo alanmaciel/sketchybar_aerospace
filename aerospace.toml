@@ -26,20 +26,20 @@ on-focus-changed = [
 [[on-window-detected]]
 run = ["exec-and-forget sketchybar --trigger aerospace_window_change"]
 
-# Per-monitor workspace assignment
-# 1 | C49RG9x          # external
-# 2 | Built-in Retina  # laptop
-
+# Per-monitor workspace assignment: rewritten automatically by
+# plugins/monitor_layout.sh whenever a monitor connects/disconnects (see
+# plugins/monitor_groups.sh for the 1/2/3-monitor grouping rule). The block
+# below is just whatever was last generated — don't hand-edit it, edit
+# monitor_groups.sh instead.
+# BEGIN WORKSPACE-MONITOR ASSIGNMENT (auto-managed by plugins/monitor_layout.sh — do not hand-edit)
 [workspace-to-monitor-force-assignment]
-# Laptop (Built-in Retina, monitor 2) → 1–3
-"1" = 2
-"2" = 2
-"3" = 2
-
-# External (C49RG9x, monitor 1) → 4–6
+"1" = 1
+"2" = 1
+"3" = 1
 "4" = 1
 "5" = 1
 "6" = 1
+# END WORKSPACE-MONITOR ASSIGNMENT
 
 # Gaps (so windows don't cover SketchyBar)
 [gaps]
@@ -49,7 +49,7 @@ outer.left       = 6
 outer.right      = 6
 outer.bottom     = 5
 # 32px gap only on external "C49RG9x", 0px on all others (laptop)
-outer.top        = [{ monitor."C49RG9x" = 40 }, 10]
+outer.top        = [{ monitor."C49RG9x" = 40 }, { monitor."BenQ GW2480" = 40 }, 10]
 
 # MAIN MODE KEYBINDINGS
 [mode.main.binding]
