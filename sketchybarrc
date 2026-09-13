@@ -21,7 +21,7 @@ trap 'rm -f "$SB_LOADING_FLAG"' EXIT
 sketchybar --bar \
   position=top \
   height=38 \
-  blur_radius=30 \
+  blur_radius=0 \
   color="$BAR_BG"
   # border_color="$BAR_BORDER" \
   # border_width=1

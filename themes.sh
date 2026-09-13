@@ -6,7 +6,7 @@ THEME="${THEME:-tokyonight}"
 case "$THEME" in
   gruvbox)
     # BAR_BG=0xdd282828
-    BAR_BG=0x40000000
+    BAR_BG=0x00000000
     BAR_BORDER=0xff3c3836
     BAR_FG=0xffebdbb2
 
@@ -29,8 +29,7 @@ case "$THEME" in
 
   monokai_octagon)
     # BAR_BG=0xdd1e1f1c
-    BAR_BG=0x40000000
-    BAR_BG=0xdd1e1f1c
+    BAR_BG=0x00000000
     BAR_BORDER=0xff2d2e27
     BAR_FG=0xfff8f8f2
 
@@ -53,7 +52,7 @@ case "$THEME" in
 
   tokyonight|*)
     # BAR_BG=0xdd1a1b26
-    BAR_BG=0x40000000
+    BAR_BG=0x00000000
     BAR_BORDER=0xff24283b
     BAR_FG=0xffffffff
 
