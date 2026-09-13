@@ -3,7 +3,6 @@
 # Runs on the `display_change` event (and once at startup, see sketchybarrc)
 # to make the whole bar — and AeroSpace's own workspace-to-monitor assignment
 # — adapt automatically to however many monitors are connected right now.
-# Replaces the old display_adapt.sh, which only ever handled "1 vs 2".
 #
 # Three numbering schemes are in play and none of them agree with each other:
 #   - AeroSpace numbers monitors 1..N left-to-right.
@@ -15,37 +14,119 @@
 #     machine (3 monitors): AeroSpace has the laptop as monitor 3 (rightmost),
 #     sketchybar still shows it as display 1 because it's the main display.
 # SB_DISPLAY bridges AeroSpace monitor-id -> sketchybar display.
+#
+# Both bridges come from load_monitors(), which fails rather than guessing
+# when AeroSpace isn't reachable. That distinction matters: this script used
+# to apply whatever the (empty) monitor list gave it, which wrote a literal
+# `"1" = ` into aerospace.toml. That's invalid TOML, so AeroSpace then
+# refused to load its config at all — and with AeroSpace down, the next run
+# had no monitor list either, so the breakage was self-sustaining.
 
 CONFIG_DIR="${CONFIG_DIR:-$HOME/.config/sketchybar}"
 PLUGIN_DIR="$CONFIG_DIR/plugins"
 source "$PLUGIN_DIR/monitor_groups.sh"
 
-if command -v aerospace >/dev/null 2>&1; then
-  MON_COUNT="$(aerospace list-monitors --count 2>/dev/null)"
-else
-  MON_COUNT=1
-fi
-[ -z "$MON_COUNT" ] && MON_COUNT=1
-
-build_pos_to_monid "$MON_COUNT"
-
 # Must match WORKSPACE_MAX_WINDOWS in sketchybarrc.
 WORKSPACE_MAX_WINDOWS=10
 
-SB_DISPLAY=()
-if [ "$MON_COUNT" -le 1 ]; then
-  SB_DISPLAY[1]=1
-else
-  MAIN_ID="$(aerospace list-monitors --format "%{monitor-id}|%{monitor-is-main}" 2>/dev/null | awk -F'|' '$2=="true"{print $1}')"
-  [ -z "$MAIN_ID" ] && MAIN_ID=1
-  SB_DISPLAY[$MAIN_ID]=1
-  next=2
-  for id in $(seq 1 "$MON_COUNT"); do
-    [ "$id" = "$MAIN_ID" ] && continue
-    SB_DISPLAY[$id]=$next
-    next=$((next + 1))
-  done
+AEROSPACE_TOML="$CONFIG_DIR/aerospace.toml"
+BEGIN_MARK="# BEGIN WORKSPACE-MONITOR ASSIGNMENT (auto-managed by plugins/monitor_layout.sh — do not hand-edit)"
+END_MARK="# END WORKSPACE-MONITOR ASSIGNMENT"
+
+# A startup run and a display_change replay can land at the same moment, and
+# two copies interleaving their `--set associated_display` calls is what left
+# pills pinned to a display that no longer exists.
+LOCK_DIR="${TMPDIR:-/tmp}/sketchybar-monitor-layout.lock"
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  owner="$(cat "$LOCK_DIR/pid" 2>/dev/null)"
+  if [ -n "$owner" ] && kill -0 "$owner" 2>/dev/null; then
+    exit 0
+  fi
+  rm -rf "$LOCK_DIR" 2>/dev/null
+  mkdir "$LOCK_DIR" 2>/dev/null || exit 0
 fi
+printf '%s\n' "$$" >"$LOCK_DIR/pid"
+trap 'rm -rf "$LOCK_DIR"' EXIT
+
+########################################
+# aerospace.toml block helpers
+########################################
+
+toml_block_bounds() {
+  BEGIN_LINE="$(grep -nF "$BEGIN_MARK" "$AEROSPACE_TOML" 2>/dev/null | head -n1 | cut -d: -f1)"
+  END_LINE="$(grep -nF "$END_MARK" "$AEROSPACE_TOML" 2>/dev/null | head -n1 | cut -d: -f1)"
+  [ -n "$BEGIN_LINE" ] && [ -n "$END_LINE" ] && [ "$END_LINE" -gt "$BEGIN_LINE" ]
+}
+
+# Splice $1 (the full replacement block, markers included) into the file.
+# macOS's stock awk chokes ("newline in string") on multi-line -v values, so
+# this is done with head/tail rather than awk.
+write_toml_block() {
+  local new_block="$1" tmp
+  tmp="$(mktemp)" || return 1
+  {
+    head -n $((BEGIN_LINE - 1)) "$AEROSPACE_TOML"
+    printf '%s\n' "$new_block"
+    tail -n +$((END_LINE + 1)) "$AEROSPACE_TOML"
+  } >"$tmp" && mv "$tmp" "$AEROSPACE_TOML"
+}
+
+# Every assignment line must be `"<ws>" = <digits>`; the only other lines
+# allowed are the two markers and the table header. Guards against writing a
+# half-resolved block, and detects one already on disk.
+block_is_valid() {
+  local line
+  while IFS= read -r line; do
+    case "$line" in
+      "$BEGIN_MARK"|"$END_MARK"|"[workspace-to-monitor-force-assignment]"|"") continue ;;
+    esac
+    case "$line" in
+      '"'[0-9]'" = '[0-9]) continue ;;
+      '"'[0-9]'" = '[0-9][0-9]) continue ;;
+      *) return 1 ;;
+    esac
+  done <<<"$1"
+  return 0
+}
+
+########################################
+# Discover monitors
+########################################
+
+if ! load_monitors || ! monitors_loaded_ok; then
+  # AeroSpace is down or still coming up. Touch nothing that depends on a
+  # monitor list — but if a previous run already corrupted the TOML, repair
+  # it here, because until it parses AeroSpace can't start, and until
+  # AeroSpace starts we can never get a monitor list to repair it with.
+  if [ -f "$AEROSPACE_TOML" ] && toml_block_bounds; then
+    CURRENT_BLOCK="$(sed -n "${BEGIN_LINE},${END_LINE}p" "$AEROSPACE_TOML")"
+    if ! block_is_valid "$CURRENT_BLOCK"; then
+      # An empty table is valid TOML and simply means "don't force any
+      # workspace onto a particular monitor" — the right neutral state when
+      # we genuinely don't know the layout. The next successful run fills it.
+      write_toml_block "$BEGIN_MARK
+[workspace-to-monitor-force-assignment]
+$END_MARK"
+    fi
+  fi
+
+  # Retry in the background: at login the sketchybar launchd service can win
+  # the race against AeroSpace.app, and display_change won't fire again on
+  # its own to give us a second chance. Bounded, and single-file because the
+  # lock above admits one copy at a time.
+  ATTEMPT="${MONITOR_LAYOUT_ATTEMPT:-1}"
+  if [ "$ATTEMPT" -lt 10 ]; then
+    (
+      /bin/sleep 3
+      MONITOR_LAYOUT_ATTEMPT=$((ATTEMPT + 1)) "$0"
+    ) >/dev/null 2>&1 &
+  fi
+  exit 0
+fi
+
+########################################
+# Place the workspace pills
+########################################
 
 # A pill's bracket has its own associated_display, but its member items
 # (num, slot.0..N, gap) each carry their own independent one too — setting
@@ -90,11 +171,8 @@ fi
 ########################################
 # Keep AeroSpace's own workspace-to-monitor assignment in sync
 ########################################
-AEROSPACE_TOML="$CONFIG_DIR/aerospace.toml"
-BEGIN_MARK="# BEGIN WORKSPACE-MONITOR ASSIGNMENT (auto-managed by plugins/monitor_layout.sh — do not hand-edit)"
-END_MARK="# END WORKSPACE-MONITOR ASSIGNMENT"
 
-if command -v aerospace >/dev/null 2>&1 && [ -f "$AEROSPACE_TOML" ]; then
+if [ -f "$AEROSPACE_TOML" ] && toml_block_bounds; then
   NEW_BLOCK="$BEGIN_MARK
 [workspace-to-monitor-force-assignment]"
   for ws in 1 2 3 4 5 6; do
@@ -105,20 +183,14 @@ if command -v aerospace >/dev/null 2>&1 && [ -f "$AEROSPACE_TOML" ]; then
   NEW_BLOCK="$NEW_BLOCK
 $END_MARK"
 
-  # macOS's stock awk chokes ("newline in string") on multi-line -v values,
-  # so the marker block is spliced in with head/tail instead.
-  begin_line="$(grep -nF "$BEGIN_MARK" "$AEROSPACE_TOML" | head -n1 | cut -d: -f1)"
-  end_line="$(grep -nF "$END_MARK" "$AEROSPACE_TOML" | head -n1 | cut -d: -f1)"
-  CURRENT_BLOCK="$(sed -n "${begin_line},${end_line}p" "$AEROSPACE_TOML")"
+  CURRENT_BLOCK="$(sed -n "${BEGIN_LINE},${END_LINE}p" "$AEROSPACE_TOML")"
 
-  if [ -n "$begin_line" ] && [ -n "$end_line" ] && [ "$CURRENT_BLOCK" != "$NEW_BLOCK" ]; then
-    TMP="$(mktemp)"
-    {
-      head -n $((begin_line - 1)) "$AEROSPACE_TOML"
-      printf '%s\n' "$NEW_BLOCK"
-      tail -n +$((end_line + 1)) "$AEROSPACE_TOML"
-    } >"$TMP" && mv "$TMP" "$AEROSPACE_TOML"
-    aerospace reload-config --no-gui >/dev/null 2>&1
+  # Never hand AeroSpace a block we just built badly — a config it can't
+  # parse takes the window manager down with it.
+  if block_is_valid "$NEW_BLOCK" && [ "$CURRENT_BLOCK" != "$NEW_BLOCK" ]; then
+    if write_toml_block "$NEW_BLOCK"; then
+      aero reload-config --no-gui >/dev/null 2>&1
+    fi
   fi
 fi
 

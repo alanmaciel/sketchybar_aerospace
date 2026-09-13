@@ -5,6 +5,15 @@ PLUGIN_DIR="$CONFIG_DIR/plugins"
 
 source "$CONFIG_DIR/themes.sh"
 
+# A reload tears every item down and re-adds it, which takes long enough that
+# the still-running workspace_pills controller (update_freq=1) fires into the
+# gap and logs a screenful of "Set: Item not found" while half its --set calls
+# are silently dropped. This flag tells that script to sit the reload out; it
+# is cleared just before monitor_layout.sh runs at the bottom of this file.
+SB_LOADING_FLAG="${TMPDIR:-/tmp}/sketchybar-config-loading"
+: >"$SB_LOADING_FLAG"
+trap 'rm -f "$SB_LOADING_FLAG"' EXIT
+
 
 ########################################
 # BAR
@@ -12,7 +21,7 @@ source "$CONFIG_DIR/themes.sh"
 sketchybar --bar \
   position=top \
   height=38 \
-  blur_radius=30 \
+  blur_radius=0 \
   color="$BAR_BG"
   # border_color="$BAR_BORDER" \
   # border_width=1
@@ -280,6 +289,12 @@ sketchybar --add item monitor_layout right \
 # Run once at startup, synchronously — backgrounding this let it race against
 # a concurrent display_change replay firing on the --subscribe above right
 # after startup, sometimes leaving a pill's associated_display unset.
+
+# Every item exists from here on, so pill updates are safe again — and
+# monitor_layout.sh ends by running workspace_pills.sh itself, which would
+# otherwise sit this run out too.
+rm -f "$SB_LOADING_FLAG"
+
 "$PLUGIN_DIR/monitor_layout.sh"
 
 ########################################
