@@ -101,9 +101,18 @@ aero() {
 #   POS_TO_MONID[] - our position (1..MAX_POSITIONS) -> AeroSpace monitor-id,
 #                    built-in forced to position 1 when present
 #   SB_DISPLAY[]   - AeroSpace monitor-id -> sketchybar associated_display.
-#                    sketchybar always calls the *main* display 1 and numbers
-#                    the rest 2..N left-to-right, which is a different order
-#                    from AeroSpace's, hence this second bridge.
+#                    Both sketchybar's display numbering and AeroSpace's
+#                    `monitor-appkit-nsscreen-screens-id` are the index into
+#                    AppKit's NSScreen.screens, so that field *is* the bridge
+#                    and is read straight off `list-monitors`. (This used to
+#                    be guessed as "main display is 1, then left-to-right",
+#                    which silently swaps two monitors whenever macOS's screen
+#                    order isn't their physical order: with the laptop main at
+#                    x=0, a portrait panel at x=-1080 and an ultrawide at
+#                    x=-6200, NSScreen orders them laptop/portrait/ultrawide
+#                    while AeroSpace numbers them ultrawide/portrait/laptop,
+#                    so the guess put workspaces 3-4 on the portrait panel and
+#                    5-6 on the ultrawide — exactly backwards.)
 #
 # Returns non-zero — leaving all three untouched — when AeroSpace can't be
 # reached. Callers must check: a layout derived from an empty monitor list is
@@ -112,18 +121,32 @@ load_monitors() {
   command -v aerospace >/dev/null 2>&1 || return 1
 
   local raw
-  raw="$(aero list-monitors --format "%{monitor-id}|%{monitor-name}|%{monitor-is-main}")" || return 1
+  # monitor-name goes last: it is the only field that could contain a "|",
+  # and read's final variable absorbs the remainder of the line.
+  raw="$(aero list-monitors --format "%{monitor-id}|%{monitor-is-main}|%{monitor-appkit-nsscreen-screens-id}|%{monitor-name}")" || return 1
   [ -n "$raw" ] || return 1
 
   local built_in_id="" main_id="" others=() count=0
-  local id name is_main name_lc
-  while IFS='|' read -r id name is_main; do
+  local id name is_main ns_id name_lc
+  local ns_ok=1
+  SB_DISPLAY=()
+  while IFS='|' read -r id is_main ns_id name; do
     # Skip anything that isn't a monitor row — notably the CLI's own
     # "Can't connect to AeroSpace server" text, which otherwise parses as a
     # monitor and yields a bogus layout.
     case "$id" in ''|*[!0-9]*) continue ;; esac
     count=$((count + 1))
     [ "$is_main" = "true" ] && main_id="$id"
+
+    # The NSScreen index is sketchybar's display number. An older AeroSpace
+    # that doesn't know the placeholder echoes it back verbatim, so anything
+    # non-numeric drops us to the heuristic below.
+    case "$ns_id" in
+      ''|*[!0-9]*) ns_ok=0 ;;
+      0) ns_ok=0 ;;
+      *) SB_DISPLAY[$id]="$ns_id" ;;
+    esac
+
     name_lc="$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]')"
     case "$name_lc" in
       *built-in*) built_in_id="$id" ;;
@@ -144,18 +167,36 @@ load_monitors() {
     pos=$((pos + 1))
   done
 
-  SB_DISPLAY=()
   [ -n "$main_id" ] || main_id=1
-  SB_DISPLAY[$main_id]=1
-  local next=2 i
-  for i in $(seq 1 "$count"); do
-    [ "$i" = "$main_id" ] && continue
-    SB_DISPLAY[$i]=$next
-    next=$((next + 1))
-  done
+  if [ "$ns_ok" != 1 ]; then
+    # Fallback for an AeroSpace without monitor-appkit-nsscreen-screens-id:
+    # assume main is display 1 and the rest follow AeroSpace's left-to-right
+    # order. Right whenever macOS's screen order matches the physical one.
+    SB_DISPLAY=()
+    SB_DISPLAY[$main_id]=1
+    local next=2 i
+    for i in $(seq 1 "$count"); do
+      [ "$i" = "$main_id" ] && continue
+      SB_DISPLAY[$i]=$next
+      next=$((next + 1))
+    done
+  fi
 
   MON_COUNT="$count"
   return 0
+}
+
+# How many displays *sketchybar* currently sees. This is the authoritative
+# count for the bar, and it updates the instant display_change fires —
+# AeroSpace's own list can still be a beat behind, so monitor_layout.sh waits
+# for the two to agree before it commits a layout. Echoes 0 / returns 1 when
+# sketchybar can't be queried.
+sb_display_count() {
+  local n
+  n="$(sketchybar --query displays 2>/dev/null | grep -c '"arrangement-id"')"
+  case "$n" in ''|*[!0-9]*) echo 0; return 1 ;; esac
+  [ "$n" -ge 1 ] || { echo 0; return 1; }
+  echo "$n"
 }
 
 # True only when every position a workspace can be routed to resolves to a

@@ -9,11 +9,14 @@
 #   - Our own "position" (see monitor_groups.sh) forces the built-in display
 #     to position 1 whenever it's connected, regardless of its physical
 #     placement — POS_TO_MONID bridges position -> AeroSpace monitor-id.
-#   - sketchybar's associated_display always puts the main display at 1, then
-#     numbers the rest in left-to-right order. Verified empirically on this
-#     machine (3 monitors): AeroSpace has the laptop as monitor 3 (rightmost),
-#     sketchybar still shows it as display 1 because it's the main display.
-# SB_DISPLAY bridges AeroSpace monitor-id -> sketchybar display.
+#   - sketchybar's associated_display is the NSScreen index, which macOS
+#     orders main-first and then by its own arrangement — not left to right.
+#     On this machine (laptop main at x=0, portrait panel at x=-1080,
+#     ultrawide at x=-6200) AeroSpace numbers them ultrawide/portrait/laptop
+#     while sketchybar numbers them laptop/portrait/ultrawide.
+# SB_DISPLAY bridges AeroSpace monitor-id -> sketchybar display; it comes
+# straight from AeroSpace's monitor-appkit-nsscreen-screens-id rather than
+# being inferred, see monitor_groups.sh.
 #
 # Both bridges come from load_monitors(), which fails rather than guessing
 # when AeroSpace isn't reachable. That distinction matters: this script used
@@ -36,16 +39,45 @@ END_MARK="# END WORKSPACE-MONITOR ASSIGNMENT"
 # A startup run and a display_change replay can land at the same moment, and
 # two copies interleaving their `--set associated_display` calls is what left
 # pills pinned to a display that no longer exists.
+#
+# Losing the race must not *drop* the event, though: plugging or unplugging a
+# monitor typically fires display_change more than once, and the later firing
+# is the one carrying the settled layout. A loser that simply exited left the
+# bar showing whatever the first (still-mid-transition) run committed, with no
+# further display_change coming to correct it. Losers now raise a rerun flag
+# and the holder does another pass — same shape as workspace_pills.sh.
 LOCK_DIR="${TMPDIR:-/tmp}/sketchybar-monitor-layout.lock"
+PID_FILE="$LOCK_DIR/pid"
+RERUN_FLAG="$LOCK_DIR/rerun"
+# A pass can legitimately take a few seconds (it waits for AeroSpace to catch
+# up with the new display set), but never this long; a holder older than this
+# is wedged and gets broken rather than waited on. Age is read off the pid
+# file, which each pass touches — the rerun flag lives inside the directory
+# and would otherwise keep resetting its mtime.
+LOCK_MAX_AGE=60
+
+lock_age() {
+  local mtime now
+  mtime="$(stat -f %m "$PID_FILE" 2>/dev/null)"
+  case "$mtime" in ''|*[!0-9]*) echo 9999; return ;; esac
+  now="$(date +%s)"
+  echo $((now - mtime))
+}
+
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  owner="$(cat "$LOCK_DIR/pid" 2>/dev/null)"
-  if [ -n "$owner" ] && kill -0 "$owner" 2>/dev/null; then
-    exit 0
+  owner="$(cat "$PID_FILE" 2>/dev/null)"
+  if [ -n "$owner" ] && kill -0 "$owner" 2>/dev/null && [ "$(lock_age)" -lt "$LOCK_MAX_AGE" ]; then
+    # stderr is redirected before the flag so a failure here has somewhere
+    # quiet to go (redirections apply left to right).
+    : 2>/dev/null >"$RERUN_FLAG" && exit 0
+    # The holder finished between the liveness check and here — fall through
+    # and take the lock ourselves rather than dropping the event.
   fi
+  [ -n "$owner" ] && kill -9 "$owner" 2>/dev/null
   rm -rf "$LOCK_DIR" 2>/dev/null
   mkdir "$LOCK_DIR" 2>/dev/null || exit 0
 fi
-printf '%s\n' "$$" >"$LOCK_DIR/pid"
+printf '%s\n' "$$" >"$PID_FILE"
 trap 'rm -rf "$LOCK_DIR"' EXIT
 
 ########################################
@@ -92,8 +124,145 @@ block_is_valid() {
 ########################################
 # Discover monitors
 ########################################
+# display_change fires the moment macOS reconfigures the displays, but
+# AeroSpace can still be a beat behind — and `list-monitors` doesn't say so,
+# it just answers with the *previous* set. That's the quiet failure mode of
+# plug/unplug: load_monitors() succeeds, monitors_loaded_ok() passes, a stale
+# layout gets committed, and no second display_change ever arrives to correct
+# it, so the pills sit on the wrong monitors until the next reload.
+#
+# So poll until AeroSpace's monitor count matches the display count
+# *sketchybar* reports — sketchybar's own view is by definition current, since
+# it is what fired the event. Bounded, so a disagreement that never resolves
+# still ends in some layout rather than none.
+SETTLE_TRIES=20   # x 0.25s ~= 5s
 
-if ! load_monitors || ! monitors_loaded_ok; then
+monitors_settled() {
+  local want tries=0 fails=0
+  want="$(sb_display_count)" || want=""
+  while :; do
+    if load_monitors && monitors_loaded_ok; then
+      fails=0
+      # Nothing to cross-check against (sketchybar didn't answer): take it.
+      [ -z "$want" ] && return 0
+      [ "$MON_COUNT" = "$want" ] && return 0
+    else
+      # An unreachable AeroSpace isn't something a 5s wait fixes, and each
+      # failed attempt costs the full aero() timeout — give up on settling
+      # and let the background retry path (3s apart, ten tries) take it.
+      fails=$((fails + 1))
+      [ "$fails" -ge 2 ] && return 1
+    fi
+    tries=$((tries + 1))
+    [ "$tries" -ge "$SETTLE_TRIES" ] && return 1
+    /bin/sleep 0.25
+    # Re-read the target too: a second monitor finishing its wake-up moves it.
+    want="$(sb_display_count)" || want=""
+  done
+}
+
+# 0 = AeroSpace isn't reachable at all; touch nothing that needs a monitor list.
+have_monitors() {
+  monitors_settled && return 0
+  # Counts never agreed, but AeroSpace is answering and the layout resolves
+  # fully — better to apply it than to leave the bar on a layout we know is
+  # stale. A rerun (below) or the next display_change gets another go.
+  load_monitors && monitors_loaded_ok
+}
+
+########################################
+# Apply one layout
+########################################
+
+apply_layout() {
+  # Heartbeat, so a pass that legitimately spends seconds waiting on AeroSpace
+  # isn't mistaken for a wedged holder by the age check above.
+  touch "$PID_FILE" 2>/dev/null
+
+  local ARGS=() ws pos mon_id display i
+
+  for ws in 1 2 3 4 5 6; do
+    pos="$(workspace_target_monitor "$ws" "$MON_COUNT")"
+    mon_id="${POS_TO_MONID[$pos]}"
+    display="${SB_DISPLAY[$mon_id]}"
+
+    # A pill's bracket has its own associated_display, but its member items
+    # (num, slot.0..N, gap) each carry their own independent one too — setting
+    # it on the bracket alone leaves the members pinned to whichever display
+    # they were created on, so they never render once that display is gone.
+    ARGS+=(--set "space.$ws" associated_display="$display" drawing=on)
+    ARGS+=(--set "space.$ws.num" associated_display="$display")
+    ARGS+=(--set "space.$ws.gap" associated_display="$display")
+    for i in $(seq 0 $((WORKSPACE_MAX_WINDOWS - 1))); do
+      ARGS+=(--set "space.$ws.slot.$i" associated_display="$display")
+    done
+  done
+
+  # Right side: one clock/battery pair per connected display, up to 3.
+  ARGS+=(--set clock   associated_display=1 drawing=on)
+  ARGS+=(--set battery associated_display=1 drawing=on)
+
+  if [ "$MON_COUNT" -ge 2 ]; then
+    ARGS+=(--set clock_ext   associated_display=2 drawing=on)
+    ARGS+=(--set battery_ext associated_display=2 drawing=on)
+  else
+    ARGS+=(--set clock_ext   drawing=off)
+    ARGS+=(--set battery_ext drawing=off)
+  fi
+
+  if [ "$MON_COUNT" -ge 3 ]; then
+    ARGS+=(--set clock_ext2   associated_display=3 drawing=on)
+    ARGS+=(--set battery_ext2 associated_display=3 drawing=on)
+  else
+    ARGS+=(--set clock_ext2   drawing=off)
+    ARGS+=(--set battery_ext2 drawing=off)
+  fi
+
+  # One invocation rather than ~80 (6 pills x 13 items, plus the right side).
+  # Speed is half of it; the other half is that a half-applied layout is a
+  # visible, sticky mess — the err log has a monitor_layout run being SIGTERMed
+  # partway through its loop of individual `--set`s, leaving some members of a
+  # pill on the old display and some on the new.
+  sketchybar "${ARGS[@]}"
+
+  sync_aerospace_toml
+}
+
+########################################
+# Keep AeroSpace's own workspace-to-monitor assignment in sync
+########################################
+
+sync_aerospace_toml() {
+  [ -f "$AEROSPACE_TOML" ] || return 0
+  toml_block_bounds || return 0
+
+  local NEW_BLOCK CURRENT_BLOCK ws pos
+  NEW_BLOCK="$BEGIN_MARK
+[workspace-to-monitor-force-assignment]"
+  for ws in 1 2 3 4 5 6; do
+    pos="$(workspace_target_monitor "$ws" "$MON_COUNT")"
+    NEW_BLOCK="$NEW_BLOCK
+\"$ws\" = ${POS_TO_MONID[$pos]}"
+  done
+  NEW_BLOCK="$NEW_BLOCK
+$END_MARK"
+
+  CURRENT_BLOCK="$(sed -n "${BEGIN_LINE},${END_LINE}p" "$AEROSPACE_TOML")"
+
+  # Never hand AeroSpace a block we just built badly — a config it can't
+  # parse takes the window manager down with it.
+  if block_is_valid "$NEW_BLOCK" && [ "$CURRENT_BLOCK" != "$NEW_BLOCK" ]; then
+    if write_toml_block "$NEW_BLOCK"; then
+      aero reload-config --no-gui >/dev/null 2>&1
+    fi
+  fi
+}
+
+########################################
+# Run
+########################################
+
+if ! have_monitors; then
   # AeroSpace is down or still coming up. Touch nothing that depends on a
   # monitor list — but if a previous run already corrupted the TOML, repair
   # it here, because until it parses AeroSpace can't start, and until
@@ -124,75 +293,19 @@ $END_MARK"
   exit 0
 fi
 
-########################################
-# Place the workspace pills
-########################################
+rm -f "$RERUN_FLAG" 2>/dev/null
+apply_layout
 
-# A pill's bracket has its own associated_display, but its member items
-# (num, slot.0..N, gap) each carry their own independent one too — setting
-# it on the bracket alone leaves the members pinned to whichever display
-# they were created on, so they never render once that display is gone.
-set_pill_display() {
-  local sid="$1" display="$2"
-  sketchybar --set "space.$sid" associated_display="$display" drawing=on
-  sketchybar --set "space.$sid.num" associated_display="$display"
-  sketchybar --set "space.$sid.gap" associated_display="$display"
-  for i in $(seq 0 $((WORKSPACE_MAX_WINDOWS - 1))); do
-    sketchybar --set "space.$sid.slot.$i" associated_display="$display"
-  done
-}
-
-for ws in 1 2 3 4 5 6; do
-  pos="$(workspace_target_monitor "$ws" "$MON_COUNT")"
-  mon_id="${POS_TO_MONID[$pos]}"
-  set_pill_display "$ws" "${SB_DISPLAY[$mon_id]}"
+# Absorb the display_change firings that arrived while we were busy. A
+# plug/unplug usually produces several, and the later ones are the ones that
+# describe the settled desktop, so the last pass is the one that must win.
+extra=0
+while [ -f "$RERUN_FLAG" ] && [ "$extra" -lt 3 ]; do
+  rm -f "$RERUN_FLAG" 2>/dev/null
+  touch "$PID_FILE" 2>/dev/null
+  have_monitors && apply_layout
+  extra=$((extra + 1))
 done
-
-# Right side: one clock/battery pair per connected display, up to 3.
-sketchybar --set clock   associated_display=1 drawing=on
-sketchybar --set battery associated_display=1 drawing=on
-
-if [ "$MON_COUNT" -ge 2 ]; then
-  sketchybar --set clock_ext   associated_display=2 drawing=on
-  sketchybar --set battery_ext associated_display=2 drawing=on
-else
-  sketchybar --set clock_ext   drawing=off
-  sketchybar --set battery_ext drawing=off
-fi
-
-if [ "$MON_COUNT" -ge 3 ]; then
-  sketchybar --set clock_ext2   associated_display=3 drawing=on
-  sketchybar --set battery_ext2 associated_display=3 drawing=on
-else
-  sketchybar --set clock_ext2   drawing=off
-  sketchybar --set battery_ext2 drawing=off
-fi
-
-########################################
-# Keep AeroSpace's own workspace-to-monitor assignment in sync
-########################################
-
-if [ -f "$AEROSPACE_TOML" ] && toml_block_bounds; then
-  NEW_BLOCK="$BEGIN_MARK
-[workspace-to-monitor-force-assignment]"
-  for ws in 1 2 3 4 5 6; do
-    pos="$(workspace_target_monitor "$ws" "$MON_COUNT")"
-    NEW_BLOCK="$NEW_BLOCK
-\"$ws\" = ${POS_TO_MONID[$pos]}"
-  done
-  NEW_BLOCK="$NEW_BLOCK
-$END_MARK"
-
-  CURRENT_BLOCK="$(sed -n "${BEGIN_LINE},${END_LINE}p" "$AEROSPACE_TOML")"
-
-  # Never hand AeroSpace a block we just built badly — a config it can't
-  # parse takes the window manager down with it.
-  if block_is_valid "$NEW_BLOCK" && [ "$CURRENT_BLOCK" != "$NEW_BLOCK" ]; then
-    if write_toml_block "$NEW_BLOCK"; then
-      aero reload-config --no-gui >/dev/null 2>&1
-    fi
-  fi
-fi
 
 # Refresh pill colors immediately — monitor connect/disconnect doesn't fire
 # any of the events workspace_pills.sh normally subscribes to.
