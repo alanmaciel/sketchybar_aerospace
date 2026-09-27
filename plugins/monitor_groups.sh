@@ -158,9 +158,15 @@ sb_display_count() {
 #   POS_TO_MONID[] - our position (1..MAX_POSITIONS) -> AeroSpace monitor-id,
 #                    built-in forced to position 1 when present
 #   SB_DISPLAY[]   - AeroSpace monitor-id -> sketchybar associated_display,
-#                    matched geometrically: see sb_display_for_rank() below.
+#                    matched geometrically: see sb_displays_by_position().
 #                    Do not try to compute this from monitor properties; two
 #                    such shortcuts have already shipped and both broke.
+#   SB_DISPLAY_SOURCE - how SB_DISPLAY was derived: "geometry" when sketchybar
+#                    and AeroSpace agree on the display set (trustworthy),
+#                    "nsscreen" when it fell back (sketchybar unqueryable, or
+#                    a plug/unplug still in flight), "" when neither worked.
+#                    Only "geometry" is safe to *re-assert* pills onto from a
+#                    polling caller; see workspace_pills.sh.
 #
 # Returns non-zero — leaving all three untouched — when AeroSpace can't be
 # reached. Callers must check: a layout derived from an empty monitor list is
@@ -238,15 +244,18 @@ load_monitors() {
     geo_ok=0
   fi
 
+  SB_DISPLAY_SOURCE=geometry
   if [ "$geo_ok" != 1 ]; then
     # Fall back to the NSScreen index — usually, but not always, sketchybar's
     # numbering. Leaving SB_DISPLAY empty is the honest answer when we have
     # neither; monitors_loaded_ok() then keeps every caller from acting.
     SB_DISPLAY=()
+    SB_DISPLAY_SOURCE=""
     if [ "$ns_fallback" = 1 ]; then
       for i in $(seq 1 "$count"); do
         SB_DISPLAY[$i]="${NS_SCREEN_ID[$i]}"
       done
+      SB_DISPLAY_SOURCE=nsscreen
     fi
   fi
 

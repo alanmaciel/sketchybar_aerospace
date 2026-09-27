@@ -116,10 +116,27 @@ trap 'rm -rf "$LOCK_DIR"' EXIT
 ########################################
 
 update_pill() {
-  local sid="$1" focused_ws="$2"
+  local sid="$1" focused_ws="$2" display="$3"
   local bracket="space.$sid"
   local num="$bracket.num"
   local slot_prefix="$bracket.slot"
+
+  # Re-assert which display this pill lives on, every pass.
+  #
+  # monitor_layout.sh owns placement, but it only runs on display_change, so
+  # anything that went wrong during one plug/unplug used to stay wrong until
+  # the *next* one: a run SIGTERMed partway through its --set loop (the err
+  # log has one) left a pill's members split across two displays, which draws
+  # as a background box with no number and no icons. Nothing repainted
+  # associated_display, so the box just sat there. Re-asserting it here — and
+  # the digit and drawing flags, which nothing else repainted either — makes
+  # every such state heal within a second instead of never.
+  #
+  # Only when the mapping is trustworthy: an empty $display means sketchybar
+  # and AeroSpace currently disagree about the display set (a reconfigure in
+  # flight), and monitor_layout.sh is the one that waits that out properly.
+  local da=()
+  [ -n "$display" ] && da=(associated_display="$display")
 
   local state_fg bg_color border_width border_color
   if [ "$sid" = "$focused_ws" ]; then
@@ -155,7 +172,7 @@ update_pill() {
       icon_color="$state_fg"
     fi
 
-    ARGS+=(--set "$slot_prefix.$i" \
+    ARGS+=(--set "$slot_prefix.$i" ${da[@]+"${da[@]}"} \
       drawing=on \
       label="$icon_result" \
       label.color="$icon_color" \
@@ -167,7 +184,7 @@ update_pill() {
   window_count="$i"
 
   while [ "$i" -lt "$MAX_SLOTS" ]; do
-    ARGS+=(--set "$slot_prefix.$i" drawing=off)
+    ARGS+=(--set "$slot_prefix.$i" ${da[@]+"${da[@]}"} drawing=off)
     i=$((i + 1))
   done
 
@@ -185,13 +202,28 @@ update_pill() {
     border_color="$SPACE_EMPTY_BG"
   fi
 
-  ARGS+=(--set "$bracket" \
+  ARGS+=(--set "$bracket" ${da[@]+"${da[@]}"} \
+    drawing=on \
     background.drawing=on \
     background.color="$bg_color" \
     background.border_width="$border_width" \
     background.border_color="$border_color")
 
-  ARGS+=(--set "$num" icon.color="$state_fg" icon.padding_right="$num_padding_right")
+  # icon="$sid" is static (sketchybarrc sets it once), but re-asserting it
+  # costs nothing and is what makes a numberless pill impossible to persist.
+  ARGS+=(--set "$num" ${da[@]+"${da[@]}"} \
+    drawing=on \
+    icon="$sid" \
+    icon.drawing=on \
+    icon.color="$state_fg" \
+    icon.padding_right="$num_padding_right")
+
+  # Guarded: a `--set <item>` with no key=value pairs after it makes
+  # sketchybar swallow the following tokens as if they were this item's
+  # properties, which corrupts the rest of the batched call. The gap has
+  # nothing to set but its display, so it is skipped entirely when the
+  # display mapping isn't trustworthy.
+  [ "${#da[@]}" -gt 0 ] && ARGS+=(--set "$bracket.gap" "${da[@]}")
 }
 
 run_pass() {
@@ -227,11 +259,14 @@ run_pass() {
   ALL_WINDOWS="$(aero list-windows --all --format "%{workspace}|%{window-id}|%{app-name}")"
 
   ARGS=()
-  local ws pos mon_id
+  local ws pos mon_id display
   for ws in 1 2 3 4 5 6; do
     pos="$(workspace_target_monitor "$ws" "$MON_COUNT")"
     mon_id="${POS_TO_MONID[$pos]}"
-    update_pill "$ws" "${FOCUSED[$mon_id]}"
+    # Empty unless the geometric match succeeded — see update_pill.
+    display=""
+    [ "$SB_DISPLAY_SOURCE" = geometry ] && display="${SB_DISPLAY[$mon_id]}"
+    update_pill "$ws" "${FOCUSED[$mon_id]}" "$display"
   done
 
   sketchybar "${ARGS[@]}"
