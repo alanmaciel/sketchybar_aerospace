@@ -1,10 +1,19 @@
 # AeroSpace + SketchyBar minimal config (2 monitors, per-monitor workspaces)
 
+# Config version 2: persistent-workspaces is no longer inferred from the
+# keybindings below — only the list here is kept alive.
+config-version = 2
+
 start-at-login = true
 
-# Start SketchyBar when AeroSpace starts
+# Workspaces 1-6 are the only ones the bar has pills for (see
+# plugins/monitor_groups.sh); keep them alive even when empty/invisible.
+persistent-workspaces = ["1", "2", "3", "4", "5", "6"]
+
+# SketchyBar is NOT launched here: the Homebrew launchd service
+# (KeepAlive) already runs it, and a second copy only fails to acquire
+# sketchybar's lock-file and floods its err.log.
 after-startup-command = [
-  "exec-and-forget sketchybar",
   "exec-and-forget borders active_color=0xff00bcff inactive_color=0xff494d64 width=10.0 &"
 ]
 
