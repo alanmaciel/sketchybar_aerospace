@@ -175,3 +175,50 @@ monitors_loaded_ok() {
   done
   return 0
 }
+
+########################################
+# Atomic pid locks
+########################################
+# Shared by monitor_layout.sh and workspace_pills.sh. A lock is a symlink
+# whose target is the holder's pid: `ln -s` creates it and records the owner
+# in one atomic step. The previous mkdir-then-write-pid lock had a window
+# between the two where the pid file was empty, and a racing run would read
+# that as "dead owner", rm -rf the live lock and take it too.
+#
+# Breaking a stale lock is serialized through a mkdir guard and re-checks
+# the owner under it, so two runs that both saw the same dead owner can't
+# end up with one deleting the lock the other just re-created.
+
+# lock_try <lock> — 0 if this process ($$) now holds it.
+lock_try() {
+  ln -s "$$" "$1" 2>/dev/null
+}
+
+# lock_owner <lock> — echoes the holder's pid; empty if nobody holds it.
+lock_owner() {
+  readlink "$1" 2>/dev/null
+}
+
+# lock_break <lock> <owner> — removes the lock only if <owner> still holds
+# it. Non-zero if another run is breaking it right now; retry afterwards.
+lock_break() {
+  local lock="$1" owner="$2" guard="$1.break" mtime
+  if ! mkdir "$guard" 2>/dev/null; then
+    # A breaker killed inside the few lines below would otherwise leave the
+    # guard behind and block every future break.
+    mtime="$(stat -f %m "$guard" 2>/dev/null)"
+    case "$mtime" in
+      ''|*[!0-9]*) ;;
+      *) [ $(($(date +%s) - mtime)) -ge 10 ] && rmdir "$guard" 2>/dev/null ;;
+    esac
+    return 1
+  fi
+  [ "$(lock_owner "$lock")" = "$owner" ] && rm -f "$lock"
+  rmdir "$guard" 2>/dev/null
+  return 0
+}
+
+# lock_release <lock> — drops the lock if, and only if, this process holds it.
+lock_release() {
+  [ "$(lock_owner "$1")" = "$$" ] && rm -f "$1"
+}

@@ -59,57 +59,52 @@ if [ -f "$SB_LOADING_FLAG" ]; then
   esac
 fi
 
-LOCK_DIR="${TMPDIR:-/tmp}/sketchybar-workspace-pills.lock"
-PID_FILE="$LOCK_DIR/pid"
-RERUN_FLAG="$LOCK_DIR/rerun"
+# Atomic symlink lock (target = holder pid), see lock_try() in
+# monitor_groups.sh. The rerun flag lives beside it rather than inside it.
+LOCK_FILE="${TMPDIR:-/tmp}/sketchybar-workspace-pills.lk"
+RERUN_FLAG="${TMPDIR:-/tmp}/sketchybar-workspace-pills.rerun"
 LOCK_MAX_AGE=20
 
-# Age of the current lock, from the pid file rather than the directory: the
-# rerun flag is created inside the directory and would otherwise keep
-# resetting the directory's mtime, hiding a wedged holder indefinitely.
+# Age of the current lock: the symlink's own mtime (stat doesn't follow it),
+# refreshed by the per-pass heartbeat in run_pass().
 lock_age() {
   local mtime now
-  mtime="$(stat -f %m "$PID_FILE" 2>/dev/null)"
+  mtime="$(stat -f %m "$LOCK_FILE" 2>/dev/null)"
   case "$mtime" in ''|*[!0-9]*) echo 9999; return ;; esac
   now="$(date +%s)"
   echo $((now - mtime))
 }
 
 acquire_lock() {
-  local attempt owner
-  for attempt in 1 2 3; do
-    if mkdir "$LOCK_DIR" 2>/dev/null; then
-      printf '%s\n' "$$" >"$PID_FILE"
-      return 0
-    fi
+  local _ owner
+  for _ in 1 2 3; do
+    lock_try "$LOCK_FILE" && return 0
 
-    owner="$(cat "$PID_FILE" 2>/dev/null)"
-    if [ -n "$owner" ] && kill -0 "$owner" 2>/dev/null; then
+    owner="$(lock_owner "$LOCK_FILE")"
+    # Released between our attempt and the read: just try again.
+    [ -n "$owner" ] || continue
+
+    if kill -0 "$owner" 2>/dev/null; then
       if [ "$(lock_age)" -lt "$LOCK_MAX_AGE" ]; then
         # Healthy holder: hand it our turn instead of dropping this event.
-        # stderr is redirected before the flag, not after: redirections are
-        # applied left to right, so the other order lets the failure below
-        # print before it has anywhere quiet to go.
-        if : 2>/dev/null >"$RERUN_FLAG"; then
-          return 1
-        fi
-        # The holder finished and removed the directory between the liveness
-        # check and here, so there's no one left to hand off to — go back and
-        # take the lock ourselves rather than dropping the event.
+        : 2>/dev/null >"$RERUN_FLAG"
+        # Only a holder that is still there will see the flag; if it let go
+        # in the meantime there's no one to hand off to — take the lock
+        # ourselves rather than dropping the event.
+        [ "$(lock_owner "$LOCK_FILE")" = "$owner" ] && return 1
         continue
       fi
       kill -9 "$owner" 2>/dev/null
     fi
 
-    # Dead or wedged owner (or a directory left behind with no pid file at
-    # all, which the old SIGKILL path used to leave).
-    rm -rf "$LOCK_DIR" 2>/dev/null
+    # Dead or wedged owner.
+    lock_break "$LOCK_FILE" "$owner"
   done
   return 1
 }
 
 acquire_lock || exit 0
-trap 'rm -rf "$LOCK_DIR"' EXIT
+trap 'lock_release "$LOCK_FILE"' EXIT
 
 ########################################
 # One rendering pass
@@ -197,7 +192,7 @@ update_pill() {
 run_pass() {
   # Heartbeat, so a legitimately busy multi-pass run isn't mistaken for a
   # wedged one by the age check in acquire_lock().
-  touch "$PID_FILE" 2>/dev/null
+  touch -h "$LOCK_FILE" 2>/dev/null
 
   # Bail rather than render from nothing. With AeroSpace unreachable every
   # query comes back empty, which would paint all six pills as empty and

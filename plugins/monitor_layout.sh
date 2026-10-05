@@ -36,17 +36,18 @@ END_MARK="# END WORKSPACE-MONITOR ASSIGNMENT"
 # A startup run and a display_change replay can land at the same moment, and
 # two copies interleaving their `--set associated_display` calls is what left
 # pills pinned to a display that no longer exists.
-LOCK_DIR="${TMPDIR:-/tmp}/sketchybar-monitor-layout.lock"
-if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  owner="$(cat "$LOCK_DIR/pid" 2>/dev/null)"
+# Atomic symlink lock (target = holder pid), see lock_try() in
+# monitor_groups.sh.
+LOCK_FILE="${TMPDIR:-/tmp}/sketchybar-monitor-layout.lk"
+if ! lock_try "$LOCK_FILE"; then
+  owner="$(lock_owner "$LOCK_FILE")"
   if [ -n "$owner" ] && kill -0 "$owner" 2>/dev/null; then
     exit 0
   fi
-  rm -rf "$LOCK_DIR" 2>/dev/null
-  mkdir "$LOCK_DIR" 2>/dev/null || exit 0
+  [ -n "$owner" ] && lock_break "$LOCK_FILE" "$owner"
+  lock_try "$LOCK_FILE" || exit 0
 fi
-printf '%s\n' "$$" >"$LOCK_DIR/pid"
-trap 'rm -rf "$LOCK_DIR"' EXIT
+trap 'lock_release "$LOCK_FILE"' EXIT
 
 ########################################
 # aerospace.toml block helpers
