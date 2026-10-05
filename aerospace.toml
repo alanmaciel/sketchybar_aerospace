@@ -10,12 +10,10 @@ start-at-login = true
 # plugins/monitor_groups.sh); keep them alive even when empty/invisible.
 persistent-workspaces = ["1", "2", "3", "4", "5", "6"]
 
-# SketchyBar is NOT launched here: the Homebrew launchd service
-# (KeepAlive) already runs it, and a second copy only fails to acquire
-# sketchybar's lock-file and floods its err.log.
-after-startup-command = [
-  "exec-and-forget borders active_color=0xff00bcff inactive_color=0xff494d64 width=10.0 &"
-]
+# Neither SketchyBar nor borders is launched here: their Homebrew launchd
+# services (KeepAlive) already run them. A second sketchybar only fails to
+# acquire its lock-file and floods err.log; borders reads its colours from
+# ~/.config/borders/bordersrc (dotfiles `borders` package).
 
 # Notify SketchyBar when workspace changes
 exec-on-workspace-change = [
