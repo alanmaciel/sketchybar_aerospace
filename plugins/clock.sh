@@ -7,8 +7,10 @@ if [ "$MODE" = "click" ]; then
   week="$(date +%V)"
 
   # Quarter (1–4)
-  month="$(date +%m | sed 's/^0//')"   # strip leading zero
-  quarter=$(( ( (month - 1) / 3 ) + 1 ))
+  # %m/%j are zero-padded ("08", "089"), which bash arithmetic reads as
+  # (invalid) octal — force base 10 with 10# instead of stripping zeros.
+  month="$(date +%m)"
+  quarter=$(( ( (10#$month - 1) / 3 ) + 1 ))
 
   # Days remaining in year
   year="$(date +%Y)"
@@ -16,7 +18,7 @@ if [ "$MODE" = "click" ]; then
   # Day-of-year for Dec 31 (handles leap years)
   doy_last="$(date -jf "%Y-%m-%d" "${year}-12-31" +%j 2>/dev/null)"
   [ -z "$doy_last" ] && doy_last=365
-  days_left=$((doy_last - doy_now))
+  days_left=$((10#$doy_last - 10#$doy_now))
 
   label="Week ${week} • Q${quarter} • ${days_left} days left"
   sketchybar --set "$NAME" label="$label"
