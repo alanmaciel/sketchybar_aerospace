@@ -195,6 +195,72 @@ $END_MARK"
   fi
 fi
 
+########################################
+# Keep every grouped monitor on one of its own workspaces
+########################################
+# The pills only cover 1-6. A monitor showing anything else — e.g. a
+# workspace 7 AeroSpace created when a display came or went — leaves the bar
+# with no active pill at all. Point each such monitor at the first workspace
+# of its own group, then hand focus back to where it was (or, if focus was
+# on a stray, to the first workspace of the focused monitor's group).
+
+# echoes the first of 1-6 that belongs to position $1
+first_workspace_of_position() {
+  local ws
+  for ws in 1 2 3 4 5 6; do
+    if [ "$(workspace_target_monitor "$ws" "$MON_COUNT")" = "$1" ]; then
+      echo "$ws"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# true if workspace $1 belongs to position $2
+workspace_in_position() {
+  case "$1" in
+    1|2|3|4|5|6) [ "$(workspace_target_monitor "$1" "$MON_COUNT")" = "$2" ] ;;
+    *) return 1 ;;
+  esac
+}
+
+normalize_visible_workspaces() {
+  local orig_ws orig_mon positions pos mon_id visible first last="" target=""
+  orig_ws="$(aero list-workspaces --focused | head -n 1)"
+  orig_mon="$(aero list-monitors --focused --format "%{monitor-id}" | head -n 1)"
+  [ -n "$orig_ws" ] || return 1
+
+  positions="$MON_COUNT"
+  [ "$positions" -gt "$MAX_POSITIONS" ] && positions="$MAX_POSITIONS"
+
+  for pos in $(seq 1 "$positions"); do
+    mon_id="${POS_TO_MONID[$pos]}"
+    visible="$(aero list-workspaces --monitor "$mon_id" --visible | head -n 1)"
+    [ -n "$visible" ] || continue
+    workspace_in_position "$visible" "$pos" && continue
+    first="$(first_workspace_of_position "$pos")" || continue
+    aero workspace "$first" >/dev/null && last="$first"
+    # The focused monitor's own replacement is where focus lands below if
+    # the originally focused workspace was a stray.
+    [ "$mon_id" = "$orig_mon" ] && target="$first"
+  done
+
+  case "$orig_ws" in
+    1|2|3|4|5|6) target="$orig_ws" ;;
+    # A stray on a 4th+, ungrouped monitor was left alone above, so it's
+    # still there to go back to.
+    *) [ -n "$target" ] || target="$orig_ws" ;;
+  esac
+
+  # Nothing switched means focus never moved; and no need to re-focus the
+  # workspace the last switch already landed on.
+  if [ -n "$last" ] && [ -n "$target" ] && [ "$target" != "$last" ]; then
+    aero workspace "$target" >/dev/null
+  fi
+}
+
+normalize_visible_workspaces
+
 # Refresh pill colors immediately — monitor connect/disconnect doesn't fire
 # any of the events workspace_pills.sh normally subscribes to.
 "$PLUGIN_DIR/workspace_pills.sh" &
